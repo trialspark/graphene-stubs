@@ -131,7 +131,13 @@ from graphene import ObjectType, Argument, ResolveInfo, String, Field
 class TestQuery(ObjectType):
     # Test to make sure name, description, required, and default_value arguments aren't
     # checked for on the resolver.
-    field = Field(String, new_arg=Argument(String, name='field_name', description='a field', default_value='hi', required=True))
+    field = Field(
+        String,
+        new_arg=Argument(String, name='field_name', required=True, default_value='hi'),
+        deprecation_reason='who knows',
+        description='a field',
+        required=True,
+    )
 
     @staticmethod
     def resolve_field(_: None, __: ResolveInfo, new_arg: str) -> Optional[str]:
@@ -158,6 +164,28 @@ class TestQuery(ObjectType):
 [out]
 main:11: error: Parameter "new_arg" has type Optional[MyEnum], expected type Optional[str]
 Found 1 error in 1 file (checked 1 source file)
+
+
+[case test_unsupported_type_with_any_annotation_passes]
+from typing import Optional
+from enum import Enum as PyEnum
+from graphene import ObjectType, Field, Argument, ResolveInfo, String, Enum
+
+class MyEnum(PyEnum):
+    one = 'ONE'
+
+# It's not clear how to support this type, so just count it as `Any` for now.
+MyDynamicEnum = Enum.from_enum(MyEnum)
+
+class TestQuery(ObjectType):
+    field = Field(String, new_arg=Argument(MyDynamicEnum))
+
+    @staticmethod
+    def resolve_field(_: None, __: ResolveInfo, new_arg: Optional[str]) -> Optional[str]:
+        return 'hi'
+
+[out]
+Success: no issues found in 1 source file
 
 
 [case test_enum_with_accurate_annotation_passes]

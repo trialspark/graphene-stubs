@@ -1,21 +1,18 @@
-from typing import Optional, Callable, Any, Type, Dict, Tuple, List, Union
-
-from mypy.types import AnyType, TypeOfAny  # pylint: disable=no-name-in-module
-# from mypy.sametypes import is_same_type # TODO: Use this to compare types themselves instead of string representations
-from mypy.plugin import (
-    MethodSigContext, Plugin, FunctionContext, ClassDefContext, DynamicClassDefContext, SemanticAnalyzerPluginInterface,
-    MethodContext
-)
-from mypy.plugins.common import add_method
-from mypy.nodes import AssignmentStmt, Decorator, CallExpr, Argument, Var, TypeInfo, FuncDef, EllipsisExpr, StrExpr, \
-    Statement, NameExpr, ClassDef, SymbolTableNode, SymbolNode, TupleExpr
+# pylint: disable=no-name-in-module
 from dataclasses import dataclass
+from typing import Optional, Callable, Type, List, Union
+
+# from mypy.sametypes import is_same_type # TODO: Use this to compare types themselves instead of string representations
+from mypy.plugin import Plugin, ClassDefContext
+from mypy.nodes import AssignmentStmt, Decorator, CallExpr, Argument, TypeInfo, FuncDef, EllipsisExpr, StrExpr, \
+    Statement, ClassDef, SymbolNode, TupleExpr
 
 RESOLVER_PREFIX = 'resolve_'
 GRAPHENE_ARGUMENT_NAME = 'graphene.types.argument.Argument'
-GRAPHENE_NONNULL_NAME = 'graphene.types.structures.NonNull'
-GRAPHENE_LIST_NAME = 'graphene.types.structures.List'
+GRAPHENE_ENUM_META_NAME = 'graphene.types.enum.EnumMeta'
 GRAPHENE_ENUM_NAME = 'graphene.types.enum.Enum'
+GRAPHENE_LIST_NAME = 'graphene.types.structures.List'
+GRAPHENE_NONNULL_NAME = 'graphene.types.structures.NonNull'
 
 
 @dataclass
@@ -48,7 +45,8 @@ class TypeNodeInfo:
 def create_resolver_type(resolver_node: Decorator) -> 'TypeNodeInfo':
     name = resolver_node.name[len(RESOLVER_PREFIX):]  # Chop off the beginning of the name for easier matching later
     func_def = resolver_node.func
-    return_type_name = str(func_def.type.ret_type).replace('?', '') if func_def.type else None
+    uncleaned_return_type = str(func_def.type.ret_type)  # type: ignore[attr-defined, union-attr]
+    return_type_name = uncleaned_return_type.replace('?', '') if func_def.type else None
     argument_list: List['ArgumentNode'] = []
     for argument_node in func_def.arguments:
         # TODO: Fix the ListType hack somehow.
@@ -60,16 +58,18 @@ def create_resolver_type(resolver_node: Decorator) -> 'TypeNodeInfo':
 
 
 def wrap_in_nonnull(type_string: str, non_null: bool) -> str:
-    if non_null:
+    if non_null or type_string == 'Any':
         return type_string
     return f'Optional[{type_string}]'
 
 
 def wrap_in_list(type_string: str) -> str:
+    if type_string == 'Any':
+        return type_string
     return f'List[{type_string}]'
 
 
-def get_type_string_from_graphene_type(
+def get_type_string_from_graphene_type( # pylint: disable=too-many-branches,too-many-return-statements
     graphene_types: List[TypeInfo],
     arg_names: Optional[List[str]] = None,
     non_null: bool = False,
@@ -101,6 +101,7 @@ def get_type_string_from_graphene_type(
     #     graphene_type = graphene_type.node
 
     if isinstance(graphene_type, CallExpr):
+        # This appears to be a graphene type instatiation.
         if not hasattr(graphene_type, 'callee'):
             # TODO: Figure out the None case (starargs?) AND check this is still happening
             return 'Any'  # TODO: Improve this
@@ -123,18 +124,17 @@ def get_type_string_from_graphene_type(
             return_type_name = current_type.type_object().name
         else:
             return_type_name = current_type.ret_type.type.name
-        # else:  # This is an AnyType
-        #     return_type_name = 'Any'
 
     elif hasattr(graphene_type, 'node') and graphene_type.node is not None:  # type: ignore[attr-defined]
-        if hasattr(graphene_type.node, 'bases') and \
-        GRAPHENE_ENUM_NAME in [base.type.fullname for base in graphene_type.node.bases]:
+        graphene_type_node = graphene_type.node  # type: ignore[attr-defined]
+        if hasattr(graphene_type_node, 'bases') and \
+        GRAPHENE_ENUM_NAME in [base.type.fullname for base in graphene_type_node.bases]:
             return_type_name = 'str'
         else:
-            return_type_name = graphene_type.node.name  # type: ignore[attr-defined]
+            return 'Any'
     else:
         # TODO: Come up with better fallback behavior.
-        return str(graphene_type)
+        return 'Any'
     return wrap_in_nonnull(return_type_name, non_null)
 
 
@@ -159,7 +159,7 @@ def create_attribute_type(attribute_node: AssignmentStmt) -> Optional['TypeNodeI
     names_to_nodes = zip(argument_node_names[1:], argument_nodes[1:])
 
     for argument_name, argument_node in names_to_nodes:
-        if argument_name in ['description', 'required', 'default_value']:
+        if argument_name in ['description', 'required', 'default_value', 'deprecation_reason']:
             continue
         type_name = get_type_string_from_graphene_type([argument_node], argument_node_names)
         argument_list.append(ArgumentNode(name=argument_name, type_name=type_name, context=argument_node))
@@ -203,8 +203,9 @@ def get_metaclass_attribute_types(class_body: List[Statement], ctx: ClassDefCont
             ctx.api.fail(not_a_tuple_error_message, tuple_expr)
         return interface_attributes
 
-    for tuple_item in tuple_expr.items:  # type: ignore[attr-defined]
-        interface_class_body = tuple_item.node.defn.defs.body  # TODO: Maybe make this safer
+    for tuple_item in tuple_expr.items:
+        tuple_item_node = tuple_item.node  # type: ignore[attr-defined]
+        interface_class_body = tuple_item_node.defn.defs.body  # TODO: Maybe make this safer
         interface_attributes.extend([
             create_attribute_type(interface_attribute)
             for interface_attribute in interface_class_body
@@ -241,6 +242,7 @@ class GraphenePlugin(Plugin):
             ]
             for resolver in resolvers:
                 matching_attributes = [attribute for attribute in attributes if attribute == resolver]
+                assert resolver.context is not None
                 if not matching_attributes:
                     ctx.api.fail(f'No field with name "{resolver.name}" defined', resolver.context)
                     continue
@@ -251,13 +253,15 @@ class GraphenePlugin(Plugin):
                     matching_resolver_arguments = [argument for argument in resolver.arguments if argument == arg]
                     if not matching_resolver_arguments:
                         ctx.api.fail(
-                            f'Parameter "{arg.name}" of type {arg.type_name} is missing, but required in resolver definition',
-                            resolver.context
+                            f'Parameter "{arg.name}" of type {arg.type_name} is missing,'
+                            ' but required in resolver definition', resolver.context
                         )
                         continue
 
                     matching_resolver_argument = matching_resolver_arguments[0]
-                    if matching_resolver_argument.type_name != arg.type_name:
+                    if matching_resolver_argument.type_name != arg.type_name and 'Any' not in [
+                        matching_resolver_argument.type_name, arg.type_name
+                    ]:
                         ctx.api.fail(
                             f'Parameter "{matching_resolver_argument.name}" has type '
                             f'{matching_resolver_argument.type_name}, expected type {arg.type_name}',
