@@ -23,7 +23,7 @@ def find_stub_files():
 
 setup(
     name='graphene-stubs',
-    version='0.1',
+    version='0.11',
     description=description,
     long_description=install_instructions,
     long_description_content_type='text/markdown',
@@ -32,7 +32,7 @@ setup(
     license='MIT License',
     url="https://github.com/trialspark/graphene-stubs",
     py_modules=['graphene_plugin', 'graphene_typing'],
-    install_requires=['mypy>=0.660', 'typing-extensions>=3.6.5'],
+    install_requires=['mypy>=0.750', 'typing-extensions>=3.6.5'],
     packages=['graphene-stubs'],
     package_data={'graphene-stubs': find_stub_files()},
     classifiers=[
