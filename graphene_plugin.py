@@ -104,7 +104,7 @@ def get_type_string_from_graphene_type( # pylint: disable=too-many-branches,too-
         # This appears to be a graphene type instatiation.
         if not hasattr(graphene_type, 'callee'):
             # TODO: Figure out the None case (starargs?) AND check this is still happening
-            return 'Any'  # TODO: Improve this
+            return 'Any'  # TODO: Improve this by using actual types
         if graphene_type.callee.fullname == GRAPHENE_ARGUMENT_NAME:
             return get_type_string_from_graphene_type(graphene_type.args, graphene_type.arg_names)
         if graphene_type.callee.fullname == GRAPHENE_NONNULL_NAME:
