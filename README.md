@@ -3,6 +3,8 @@
 Mypy plugin and stubs for Graphene
 ====================================
 
+This is basically an attempt to copy the sqlalchemy-stubs repo. This is meant as a sandbox to play around with plugins and stubs until it gets used in the main Spark repo.
+
 ## Development Setup
 
 First, clone the repo and cd into it, then:
