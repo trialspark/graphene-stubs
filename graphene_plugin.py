@@ -1,6 +1,6 @@
 from typing import Optional, Callable, Any, Type, Dict, Tuple, List, Union
 
-from mypy.types import AnyType, TypeOfAny, Type as MypyType  # pylint: disable=no-name-in-module
+from mypy.types import AnyType, TypeOfAny  # pylint: disable=no-name-in-module
 # from mypy.sametypes import is_same_type # TODO: Use this to compare types themselves instead of string representations
 from mypy.plugin import (
     MethodSigContext, Plugin, FunctionContext, ClassDefContext, DynamicClassDefContext, SemanticAnalyzerPluginInterface,
@@ -8,7 +8,7 @@ from mypy.plugin import (
 )
 from mypy.plugins.common import add_method
 from mypy.nodes import AssignmentStmt, Decorator, CallExpr, Argument, Var, TypeInfo, FuncDef, EllipsisExpr, StrExpr, \
-    Statement, NameExpr, ClassDef, SymbolTableNode, SymbolNode
+    Statement, NameExpr, ClassDef, SymbolTableNode, SymbolNode, TupleExpr
 from dataclasses import dataclass
 
 RESOLVER_PREFIX = 'resolve_'
@@ -16,20 +16,6 @@ GRAPHENE_ARGUMENT_NAME = 'graphene.types.argument.Argument'
 GRAPHENE_NONNULL_NAME = 'graphene.types.structures.NonNull'
 GRAPHENE_LIST_NAME = 'graphene.types.structures.List'
 GRAPHENE_ENUM_NAME = 'graphene.types.enum.Enum'
-
-# def get_resolver_arg_types(resolver_args: List[Argument]) -> List[Tuple[str, str]]:
-#     result: List[Tuple[str, str]] = []
-#     for resolver_arg in resolver_args:
-#         if resolver_arg.type_annotation is None:
-#             continue
-#         result.append((
-#             resolver_arg.variable.name,
-#             resolver_arg.type_annotation.name if resolver_arg.type_annotation is not None else None,
-#         ))
-#     return result
-
-# def get_attribute_types():
-#     pass
 
 
 @dataclass
@@ -50,8 +36,7 @@ class TypeNodeInfo:
     name: str
     return_type_name: Optional[str]
     arguments: List[ArgumentNode]
-    context: Union[FuncDef, AssignmentStmt, SymbolNode]
-    is_interface_attribute: bool = False
+    context: Union[FuncDef, AssignmentStmt, Optional[SymbolNode]]
 
     def __eq__(self, other: object) -> bool:
         return self.name == other.name  # type: ignore[attr-defined]
@@ -85,7 +70,9 @@ def wrap_in_list(type_string: str) -> str:
 
 
 def get_type_string_from_graphene_type(
-    graphene_types: List[TypeInfo], arg_names: Optional[List[str]] = None, non_null: bool = False
+    graphene_types: List[TypeInfo],
+    arg_names: Optional[List[str]] = None,
+    non_null: bool = False,
 ) -> str:
     if arg_names is None:
         arg_names = []
@@ -125,8 +112,11 @@ def get_type_string_from_graphene_type(
             return wrap_in_nonnull(wrap_in_list(get_type_string_from_graphene_type(graphene_type.args)), non_null)
         return graphene_type.callee.name
 
-    if hasattr(graphene_type,
-               'node') and hasattr(graphene_type.node, 'names') and 'parse_value' in graphene_type.node.names:
+    if (
+        hasattr(graphene_type, 'node')  \
+        and hasattr(graphene_type.node, 'names')  # type: ignore[attr-defined]
+        and 'parse_value' in graphene_type.node.names  # type: ignore[attr-defined]
+    ):
         # This is a scalar type.
         current_type = graphene_type.node['parse_value'].type  # type: ignore[attr-defined]
         if current_type.is_type_obj():
@@ -169,7 +159,7 @@ def create_attribute_type(attribute_node: AssignmentStmt) -> Optional['TypeNodeI
     names_to_nodes = zip(argument_node_names[1:], argument_nodes[1:])
 
     for argument_name, argument_node in names_to_nodes:
-        if argument_name in ['description', 'required']:
+        if argument_name in ['description', 'required', 'default_value']:
             continue
         type_name = get_type_string_from_graphene_type([argument_node], argument_node_names)
         argument_list.append(ArgumentNode(name=argument_name, type_name=type_name, context=argument_node))
@@ -182,49 +172,55 @@ def create_attribute_type(attribute_node: AssignmentStmt) -> Optional['TypeNodeI
     )
 
 
-# def get_metaclass_attribute_types(class_body: List[Statement]) -> List[TypeNodeInfo]:
-#     # Weakly support interfaces.
-#     interface_attributes = []
+def get_metaclass_attribute_types(class_body: List[Statement], ctx: ClassDefContext) -> List[Optional[TypeNodeInfo]]:
+    # Weakly support interfaces.
+    interface_attributes: List[Optional[TypeNodeInfo]] = []
 
-#     meta_classes = [
-#         attribute for attribute in class_body if isinstance(attribute, ClassDef) and attribute.name == 'Meta'
-#     ]
-#     interfaces: List[AssignmentStmt] = []
-#     if meta_classes:
-#         meta_class_body = meta_classes[0].defs.body
-#         interfaces = [
-#             attribute for attribute in meta_class_body
-#             # attribute.lvalues[0] == 'interfaces'
-#             if isinstance(attribute, AssignmentStmt)  # and
-#         ]
-#     if interfaces:
-#         attribute_dict: Dict[str, SymbolTableNode] = {}
-#         for attribute_node in interfaces[0].rvalue.items:
-#             attribute_dict = {**attribute_dict, **attribute_node.node.names}
+    meta_classes = [
+        attribute for attribute in class_body if isinstance(attribute, ClassDef) and attribute.name == 'Meta'
+    ]
+    interfaces: List[AssignmentStmt] = []
+    if meta_classes:
+        meta_class_body = meta_classes[0].defs.body
+        # for attribute in meta_class_body: # TODO: Delete
+        #     if isinstance(attribute, AssignmentStmt):
+        #         print(attribute.lvalues[0].name)
+        interfaces = [
+            attribute for attribute in meta_class_body
+            if isinstance(attribute, AssignmentStmt) \
+            and attribute.lvalues[0].name == 'interfaces' # type: ignore[attr-defined]
+        ]
 
-#         for name, node in attribute_dict.items():
-#             interface_attributes.append(
-#                 TypeNodeInfo(
-#                     name=name,
-#                     return_type_name=None,
-#                     arguments=[],
-#                     context=node.node,
-#                     is_interface_attribute=True,
-#                 )
-#             )
-#     return interface_attributes
+    if not interfaces:
+        return interface_attributes
+
+    tuple_expr = interfaces[0].rvalue
+    if not isinstance(tuple_expr, TupleExpr):
+        not_a_tuple_error_message = '"interfaces" attribute in Meta class must be a tuple type'
+        if hasattr(tuple_expr, 'line'):  # This unknown node type can be used as context for an error
+            ctx.api.fail(not_a_tuple_error_message, tuple_expr)
+        else:
+            ctx.api.fail(not_a_tuple_error_message, tuple_expr)
+        return interface_attributes
+
+    for tuple_item in tuple_expr.items:  # type: ignore[attr-defined]
+        interface_class_body = tuple_item.node.defn.defs.body  # TODO: Maybe make this safer
+        interface_attributes.extend([
+            create_attribute_type(interface_attribute)
+            for interface_attribute in interface_class_body
+            if isinstance(interface_attribute, AssignmentStmt)
+        ])
+
+    return interface_attributes
 
 
 class GraphenePlugin(Plugin):
     @staticmethod
     def get_base_class_hook(fullname: str) -> Optional[Callable[[ClassDefContext], None]]:
         def resolver_and_attribute_type_check(ctx: ClassDefContext) -> None:
-            # if 'pilot.graphql.schema.query.Query' not in ctx.cls.fullname:  # TODO: Delete
-            #     return
-
             class_body = ctx.cls.defs.body
 
-            # interface_attributes = get_metaclass_attribute_types(class_body)
+            interface_attributes = get_metaclass_attribute_types(class_body, ctx)
 
             # TODO: Improve performance by only getting type info for attributes that have
             # names matching resolvers.
@@ -232,10 +228,10 @@ class GraphenePlugin(Plugin):
                 create_attribute_type(attribute_node)
                 for attribute_node in class_body
                 if isinstance(attribute_node, AssignmentStmt)
-            ]
+            ] + interface_attributes
             attributes = [
                 attribute_or_none for attribute_or_none in attributes_or_none if attribute_or_none is not None
-            ]  #  + interface_attributes
+            ]
 
             resolvers = [ # TODO: Maybe use dicts to increase comparison speed
                 create_resolver_type(resolver_node)
@@ -276,4 +272,3 @@ class GraphenePlugin(Plugin):
 
 def plugin(_: str) -> Type[GraphenePlugin]:
     return GraphenePlugin
-
