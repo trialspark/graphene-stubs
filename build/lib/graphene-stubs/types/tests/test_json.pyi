@@ -1,0 +1,13 @@
+from ..json import JSONString as JSONString
+from ..objecttype import ObjectType as ObjectType
+from ..schema import Schema as Schema
+from typing import Any
+
+class Query(ObjectType):
+    json: Any = ...
+    def resolve_json(self, info: Any, input: Any) -> Any: ...
+
+schema: Any
+
+def test_jsonstring_query() -> None: ...
+def test_jsonstring_query_variable() -> None: ...

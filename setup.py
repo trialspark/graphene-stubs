@@ -5,7 +5,7 @@ name = 'graphene-stubs'
 description = 'Graphene stubs and mypy plugin'
 
 install_instructions = """
-# Graphene type stubs and mypy plugin
+# View installation instructions on github
 """
 
 
@@ -35,5 +35,8 @@ setup(
     install_requires=['mypy>=0.660', 'typing-extensions>=3.6.5'],
     packages=['graphene-stubs'],
     package_data={'graphene-stubs': find_stub_files()},
-    classifiers=['Programming Language :: Python :: 3']
+    classifiers=[
+        'Programming Language :: Python :: 3',
+        'License :: OSI Approved :: MIT License',
+    ]
 )

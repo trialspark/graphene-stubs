@@ -1,0 +1,13 @@
+from .mountedtype import MountedType as MountedType
+from typing import Any, Optional
+
+
+class Dynamic(MountedType):
+    type: Any = ...
+    with_schema: Any = ...
+
+    def __init__(self, type: Any, with_schema: bool = ..., _creation_counter: Optional[Any] = ...) -> None:
+        ...
+
+    def get_type(self, schema: Optional[Any] = ...) -> Any:
+        ...
