@@ -46,8 +46,7 @@ class GraphenePluginTest(DataSuite):
                 version = (3, 6)  # Always accept variable annotations.
             else:
                 version = sys.version_info[:2]
-            mypy_cmdline.append('--python-version={}'.format('.'.join(
-                map(str, version))))
+            mypy_cmdline.append('--python-version={}'.format('.'.join(map(str, version))))
 
         program_text = '\n'.join(testcase.input)
         flags = re.search('# flags: (.*)$', program_text, flags=re.MULTILINE)
@@ -67,13 +66,11 @@ class GraphenePluginTest(DataSuite):
         # split lines, remove newlines, and remove directory of test case
         for line in (out + err).splitlines():
             if line.startswith(test_temp_dir + os.sep):
-                output.append(
-                    line[len(test_temp_dir + os.sep):].rstrip("\r\n").replace(
-                        '.py', ''))
+                output.append(line[len(test_temp_dir + os.sep):].rstrip("\r\n").replace('.py', ''))
             else:
                 output.append(line.rstrip("\r\n"))
         # Remove temp file.
         os.remove(program_path)
         assert_string_arrays_equal(
-            testcase.output, output, 'Invalid output ({}, line {})'.format(
-                testcase.file, testcase.line))
+            testcase.output, output, 'Invalid output ({}, line {})'.format(testcase.file, testcase.line)
+        )

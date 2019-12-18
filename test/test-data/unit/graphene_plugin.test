@@ -6,7 +6,7 @@ class TestQuery(ObjectType):
     field = Field(String, new_arg=Argument(String))
 
     @staticmethod
-    def resolve_field(_: None, __: ResolveInfo) -> str:
+    def resolve_field(_: None, __: ResolveInfo) -> Optional[str]:
         return 'hi'
 
 [out]
@@ -15,15 +15,16 @@ Found 1 error in 1 file (checked 1 source file)
 
 
 [case test_missing_field_throws]
+from typing import Optional
 from graphene import ObjectType, Argument, ResolveInfo, String
 
 class TestQuery(ObjectType):
     @staticmethod
-    def resolve_field(_: None, __: ResolveInfo) -> str:
+    def resolve_field(_: None, __: ResolveInfo) -> Optional[str]:
         return 'hi'
 
 [out]
-main:5: error: No field with name "field" defined
+main:6: error: No field with name "field" defined
 Found 1 error in 1 file (checked 1 source file)
 
 
@@ -35,7 +36,7 @@ class TestQuery(ObjectType):
     field = Field(String, new_arg=Argument(String))
 
     @staticmethod
-    def resolve_field(_: None, __: ResolveInfo, new_arg: Optional[int]) -> str:
+    def resolve_field(_: None, __: ResolveInfo, new_arg: Optional[int]) -> Optional[str]:
         return 'hi'
 
 [out]
@@ -51,7 +52,7 @@ class TestQuery(ObjectType):
     field = Field(String, new_arg=Argument(NonNull(String)))
 
     @staticmethod
-    def resolve_field(_: None, __: ResolveInfo, new_arg: Optional[str]) -> str:
+    def resolve_field(_: None, __: ResolveInfo, new_arg: Optional[str]) -> Optional[str]:
         return 'hi'
 
 [out]
@@ -67,7 +68,7 @@ class TestQuery(ObjectType):
     field = Field(String, new_arg=Argument(String, required=True))
 
     @staticmethod
-    def resolve_field(_: None, __: ResolveInfo, new_arg: Optional[str]) -> str:
+    def resolve_field(_: None, __: ResolveInfo, new_arg: Optional[str]) -> Optional[str]:
         return 'hi'
 
 [out]
@@ -82,7 +83,7 @@ class TestQuery(ObjectType):
     field = Field(String, new_arg=Argument(String, name='field_name', description='a field'))
 
     @staticmethod
-    def resolve_field(_: None, __: ResolveInfo, new_arg: Optional[str]) -> str:
+    def resolve_field(_: None, __: ResolveInfo, new_arg: Optional[str]) -> Optional[str]:
         return 'hi'
 
 [out]
@@ -100,7 +101,7 @@ class TestQuery(ObjectType):
     field = Field(String, new_arg=Argument(MyEnum))
 
     @staticmethod
-    def resolve_field(_: None, __: ResolveInfo, new_arg: Optional[MyEnum]) -> str:
+    def resolve_field(_: None, __: ResolveInfo, new_arg: Optional[MyEnum]) -> Optional[str]:
         return 'hi'
 
 [out]
@@ -119,7 +120,7 @@ class TestQuery(ObjectType):
     field = Field(String, new_arg=Argument(MyEnum))
 
     @staticmethod
-    def resolve_field(_: None, __: ResolveInfo, new_arg: Optional[str]) -> str:
+    def resolve_field(_: None, __: ResolveInfo, new_arg: Optional[str]) -> Optional[str]:
         return 'hi'
 
 [out]
@@ -134,7 +135,7 @@ class TestQuery(ObjectType):
     field = Field(String, new_arg=Argument(List(String)))
 
     @staticmethod
-    def resolve_field(_: None, __: ResolveInfo, new_arg: Optional[str]) -> str:
+    def resolve_field(_: None, __: ResolveInfo, new_arg: Optional[str]) -> Optional[str]:
         return 'hi'
 
 [out]
@@ -150,7 +151,7 @@ class TestQuery(ObjectType):
     field = Field(String, new_arg=Argument(List(String)))
 
     @staticmethod
-    def resolve_field(_: None, __: ResolveInfo, new_arg: Optional[ListType[Optional[str]]]) -> str:
+    def resolve_field(_: None, __: ResolveInfo, new_arg: Optional[ListType[Optional[str]]]) -> Optional[str]:
         return 'hi'
 
 [out]
@@ -165,7 +166,7 @@ class TestQuery(ObjectType):
     field = Field(String, new_arg=Argument(JSONString))
 
     @staticmethod
-    def resolve_field(_: None, __: ResolveInfo, new_arg: Optional[str]) -> str:
+    def resolve_field(_: None, __: ResolveInfo, new_arg: Optional[str]) -> Optional[str]:
         return 'hi'
 [out]
 main:8: error: Parameter "new_arg" has type Optional[str], expected type Optional[dict]
@@ -180,7 +181,63 @@ class TestQuery(ObjectType):
     field = Field(String, new_arg=Argument(JSONString))
 
     @staticmethod
-    def resolve_field(_: None, __: ResolveInfo, new_arg: Optional[dict]) -> str:
+    def resolve_field(_: None, __: ResolveInfo, new_arg: Optional[dict]) -> Optional[str]:
         return 'hi'
 [out]
 Success: no issues found in 1 source file
+
+
+[case test_interface_attribute_with_accurate_annotation_passes]
+from typing import Optional
+from graphene import ObjectType, Field, Argument, ResolveInfo, String, Interface
+
+class SimpleInterface(Interface):
+    field = Field(String, new_arg=Argument(String))
+
+
+class TestQuery(ObjectType):
+    class Meta:
+        interfaces = (SimpleInterface,)
+    
+    @staticmethod
+    def resolve_field(_: None, __: ResolveInfo, new_arg: Optional[str]) -> Optional[str]:
+        return 'hi'
+[out]
+Success: no issues found in 1 source file
+
+
+[case test_interface_attribute_with_inaccurate_annotation_throws]
+from typing import Optional
+from graphene import ObjectType, Field, Argument, ResolveInfo, String, Interface
+
+class SimpleInterface(Interface):
+    field = Field(String, new_arg=Argument(String))
+
+
+class TestQuery(ObjectType):
+    class Meta:
+        interfaces = (SimpleInterface,)
+    
+    @staticmethod
+    def resolve_field(_: None, __: ResolveInfo, new_arg: Optional[int]) -> Optional[str]:
+        return 'hi'
+[out]
+main:13: error: Parameter "new_arg" has type Optional[int], expected type Optional[str]
+Found 1 error in 1 file (checked 1 source file)
+
+
+[case test_non_tuple_interface_attribute_on_meta_class_throws]
+from typing import Optional
+from graphene import ObjectType, Field, Argument, ResolveInfo, String, Interface
+
+class SimpleInterface(Interface):
+    field = Field(String, new_arg=Argument(String))
+
+
+class TestQuery(ObjectType):
+    class Meta:
+        interfaces = 'hi'
+[out]
+main:10: error: "interfaces" attribute in Meta class must be a tuple type
+Found 1 error in 1 file (checked 1 source file)
+

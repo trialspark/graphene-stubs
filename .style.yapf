@@ -1,0 +1,11 @@
+[style]
+column_limit = 120
+each_dict_entry_on_separate_line = false
+dedent_closing_brackets = true
+allow_split_before_dict_value = false
+blank_line_before_nested_class_or_def = false
+allow_multiline_dictionary_keys = false
+blank_line_before_module_docstring = false
+space_between_ending_comma_and_closing_bracket = false
+split_complex_comprehension = true
+coalesce_brackets = true
