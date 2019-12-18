@@ -1,0 +1,13 @@
+from ..generic import GenericScalar as GenericScalar
+from ..objecttype import ObjectType as ObjectType
+from ..schema import Schema as Schema
+from typing import Any, Optional
+
+class Query(ObjectType):
+    generic: Any = ...
+    def resolve_generic(self, info: Any, input: Optional[Any] = ...) -> Any: ...
+
+schema: Any
+
+def test_generic_query_variable() -> None: ...
+def test_generic_parse_literal_query() -> None: ...

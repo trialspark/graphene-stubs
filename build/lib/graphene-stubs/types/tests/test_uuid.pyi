@@ -1,0 +1,13 @@
+from ..objecttype import ObjectType as ObjectType
+from ..schema import Schema as Schema
+from ..uuid import UUID as UUID
+from typing import Any
+
+class Query(ObjectType):
+    uuid: Any = ...
+    def resolve_uuid(self, info: Any, input: Any) -> Any: ...
+
+schema: Any
+
+def test_uuidstring_query() -> None: ...
+def test_uuidstring_query_variable() -> None: ...
