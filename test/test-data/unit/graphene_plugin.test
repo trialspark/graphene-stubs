@@ -75,15 +75,66 @@ class TestQuery(ObjectType):
 main:8: error: Parameter "new_arg" has type Optional[str], expected type str
 Found 1 error in 1 file (checked 1 source file)
 
-[case test_name_and_description_attributes_are_ignored]
+
+[case test_non_optional_annotation_on_variable_with_required_set_to_false_throws]
 from typing import Optional
 from graphene import ObjectType, Argument, ResolveInfo, String, Field
 
 class TestQuery(ObjectType):
-    field = Field(String, new_arg=Argument(String, name='field_name', description='a field'))
+    field = Field(String, new_arg=Argument(String, required=False))
+
+    @staticmethod
+    def resolve_field(_: None, __: ResolveInfo, new_arg: str) -> Optional[str]:
+        return 'hi'
+
+[out]
+main:8: error: Parameter "new_arg" has type str, expected type Optional[str]
+Found 1 error in 1 file (checked 1 source file)
+
+
+[case test_optional_annotation_on_variable_with_non_none_default_value_throws]
+from typing import Optional
+from graphene import ObjectType, Argument, ResolveInfo, String, Field
+
+class TestQuery(ObjectType):
+    field = Field(String, new_arg=Argument(String, default_value='hi'))
 
     @staticmethod
     def resolve_field(_: None, __: ResolveInfo, new_arg: Optional[str]) -> Optional[str]:
+        return 'hi'
+
+[out]
+main:8: error: Parameter "new_arg" has type Optional[str], expected type str
+Found 1 error in 1 file (checked 1 source file)
+
+
+[case test_non_optional_annotation_on_variable_with_none_default_value_throws]
+from typing import Optional
+from graphene import ObjectType, Argument, ResolveInfo, String, Field
+
+class TestQuery(ObjectType):
+    field = Field(String, new_arg=Argument(String, default_value=None))
+
+    @staticmethod
+    def resolve_field(_: None, __: ResolveInfo, new_arg: str) -> Optional[str]:
+        return 'hi'
+
+[out]
+main:8: error: Parameter "new_arg" has type str, expected type Optional[str]
+Found 1 error in 1 file (checked 1 source file)
+
+
+[case test_non_field_argument_attributes_are_ignored]
+from typing import Optional
+from graphene import ObjectType, Argument, ResolveInfo, String, Field
+
+class TestQuery(ObjectType):
+    # Test to make sure name, description, required, and default_value arguments aren't
+    # checked for on the resolver.
+    field = Field(String, new_arg=Argument(String, name='field_name', description='a field', default_value='hi', required=True))
+
+    @staticmethod
+    def resolve_field(_: None, __: ResolveInfo, new_arg: str) -> Optional[str]:
         return 'hi'
 
 [out]

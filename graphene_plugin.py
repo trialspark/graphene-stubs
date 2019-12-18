@@ -159,7 +159,7 @@ def create_attribute_type(attribute_node: AssignmentStmt) -> Optional['TypeNodeI
     names_to_nodes = zip(argument_node_names[1:], argument_nodes[1:])
 
     for argument_name, argument_node in names_to_nodes:
-        if argument_name in ['description', 'required']:
+        if argument_name in ['description', 'required', 'default_value']:
             continue
         type_name = get_type_string_from_graphene_type([argument_node], argument_node_names)
         argument_list.append(ArgumentNode(name=argument_name, type_name=type_name, context=argument_node))
