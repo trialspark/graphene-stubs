@@ -1,0 +1,186 @@
+[case test_argument_missing_from_resolver_throws]
+from typing import Optional
+from graphene import ObjectType, Field, Argument, ResolveInfo, String
+
+class TestQuery(ObjectType):
+    field = Field(String, new_arg=Argument(String))
+
+    @staticmethod
+    def resolve_field(_: None, __: ResolveInfo) -> str:
+        return 'hi'
+
+[out]
+main:8: error: Parameter "new_arg" of type Optional[str] is missing, but required in resolver definition
+Found 1 error in 1 file (checked 1 source file)
+
+
+[case test_missing_field_throws]
+from graphene import ObjectType, Argument, ResolveInfo, String
+
+class TestQuery(ObjectType):
+    @staticmethod
+    def resolve_field(_: None, __: ResolveInfo) -> str:
+        return 'hi'
+
+[out]
+main:5: error: No field with name "field" defined
+Found 1 error in 1 file (checked 1 source file)
+
+
+[case test_type_mismatch_throws]
+from typing import Optional
+from graphene import ObjectType, Argument, ResolveInfo, String, Field
+
+class TestQuery(ObjectType):
+    field = Field(String, new_arg=Argument(String))
+
+    @staticmethod
+    def resolve_field(_: None, __: ResolveInfo, new_arg: Optional[int]) -> str:
+        return 'hi'
+
+[out]
+main:8: error: Parameter "new_arg" has type Optional[int], expected type Optional[str]
+Found 1 error in 1 file (checked 1 source file)
+
+
+[case test_optional_annotation_on_nonnull_variable_throws]
+from typing import Optional
+from graphene import ObjectType, Argument, ResolveInfo, String, Field, NonNull
+
+class TestQuery(ObjectType):
+    field = Field(String, new_arg=Argument(NonNull(String)))
+
+    @staticmethod
+    def resolve_field(_: None, __: ResolveInfo, new_arg: Optional[str]) -> str:
+        return 'hi'
+
+[out]
+main:8: error: Parameter "new_arg" has type Optional[str], expected type str
+Found 1 error in 1 file (checked 1 source file)
+
+
+[case test_optional_annotation_on_required_variable_throws]
+from typing import Optional
+from graphene import ObjectType, Argument, ResolveInfo, String, Field
+
+class TestQuery(ObjectType):
+    field = Field(String, new_arg=Argument(String, required=True))
+
+    @staticmethod
+    def resolve_field(_: None, __: ResolveInfo, new_arg: Optional[str]) -> str:
+        return 'hi'
+
+[out]
+main:8: error: Parameter "new_arg" has type Optional[str], expected type str
+Found 1 error in 1 file (checked 1 source file)
+
+[case test_name_and_description_attributes_are_ignored]
+from typing import Optional
+from graphene import ObjectType, Argument, ResolveInfo, String, Field
+
+class TestQuery(ObjectType):
+    field = Field(String, new_arg=Argument(String, name='field_name', description='a field'))
+
+    @staticmethod
+    def resolve_field(_: None, __: ResolveInfo, new_arg: Optional[str]) -> str:
+        return 'hi'
+
+[out]
+Success: no issues found in 1 source file
+
+
+[case test_enum_with_inaccurate_annotation_throws]
+from typing import Optional
+from graphene import ObjectType, Field, Argument, ResolveInfo, String, Enum
+
+class MyEnum(Enum):
+    one = 'ONE'
+
+class TestQuery(ObjectType):
+    field = Field(String, new_arg=Argument(MyEnum))
+
+    @staticmethod
+    def resolve_field(_: None, __: ResolveInfo, new_arg: Optional[MyEnum]) -> str:
+        return 'hi'
+
+[out]
+main:11: error: Parameter "new_arg" has type Optional[MyEnum], expected type Optional[str]
+Found 1 error in 1 file (checked 1 source file)
+
+
+[case test_enum_with_accurate_annotation_passes]
+from typing import Optional
+from graphene import ObjectType, Field, Argument, ResolveInfo, String, Enum
+
+class MyEnum(Enum):
+    one = 'ONE'
+
+class TestQuery(ObjectType):
+    field = Field(String, new_arg=Argument(MyEnum))
+
+    @staticmethod
+    def resolve_field(_: None, __: ResolveInfo, new_arg: Optional[str]) -> str:
+        return 'hi'
+
+[out]
+Success: no issues found in 1 source file
+
+
+[case test_list_type_with_inaccurate_annotation_throws]
+from typing import Optional
+from graphene import ObjectType, Field, Argument, ResolveInfo, String, List
+
+class TestQuery(ObjectType):
+    field = Field(String, new_arg=Argument(List(String)))
+
+    @staticmethod
+    def resolve_field(_: None, __: ResolveInfo, new_arg: Optional[str]) -> str:
+        return 'hi'
+
+[out]
+main:8: error: Parameter "new_arg" has type Optional[str], expected type Optional[List[Optional[str]]]
+Found 1 error in 1 file (checked 1 source file)
+
+
+[case test_list_type_with_accurate_annotation_passes]
+from typing import Optional, List as ListType
+from graphene import ObjectType, Field, Argument, ResolveInfo, String, List
+
+class TestQuery(ObjectType):
+    field = Field(String, new_arg=Argument(List(String)))
+
+    @staticmethod
+    def resolve_field(_: None, __: ResolveInfo, new_arg: Optional[ListType[Optional[str]]]) -> str:
+        return 'hi'
+
+[out]
+Success: no issues found in 1 source file
+
+
+[case test_json_type_with_inaccurate_annotation_throws]
+from typing import Optional
+from graphene import ObjectType, Field, Argument, ResolveInfo, String, JSONString
+
+class TestQuery(ObjectType):
+    field = Field(String, new_arg=Argument(JSONString))
+
+    @staticmethod
+    def resolve_field(_: None, __: ResolveInfo, new_arg: Optional[str]) -> str:
+        return 'hi'
+[out]
+main:8: error: Parameter "new_arg" has type Optional[str], expected type Optional[dict]
+Found 1 error in 1 file (checked 1 source file)
+
+
+[case test_json_type_with_accurate_annotation_passes]
+from typing import Optional
+from graphene import ObjectType, Field, Argument, ResolveInfo, String, JSONString
+
+class TestQuery(ObjectType):
+    field = Field(String, new_arg=Argument(JSONString))
+
+    @staticmethod
+    def resolve_field(_: None, __: ResolveInfo, new_arg: Optional[dict]) -> str:
+        return 'hi'
+[out]
+Success: no issues found in 1 source file
