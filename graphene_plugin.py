@@ -43,9 +43,12 @@ class TypeNodeInfo:
         return self.name != other.name  # type: ignore[attr-defined]
 
 
-def create_resolver_type(resolver_node: Decorator) -> 'TypeNodeInfo':
+def create_resolver_type(resolver_node: Union[Decorator, FuncDef]) -> 'TypeNodeInfo':
     name = resolver_node.name[len(RESOLVER_PREFIX):]  # Chop off the beginning of the name for easier matching later
-    func_def = resolver_node.func
+    if isinstance(resolver_node, FuncDef):
+        func_def = resolver_node
+    if isinstance(resolver_node, Decorator):
+        func_def = resolver_node.func
     uncleaned_return_type = str(func_def.type.ret_type)  # type: ignore[attr-defined, union-attr]
     return_type_name = uncleaned_return_type.replace('?', '') if func_def.type else None
     argument_list: List['ArgumentNode'] = []
@@ -259,8 +262,13 @@ class GraphenePlugin(Plugin):
                 create_resolver_type(resolver_node)
                 for resolver_node in class_body
                 # The check for Decorator assumes we're using `staticmethod`s.
-                if isinstance(resolver_node, Decorator) and resolver_node.name.startswith(RESOLVER_PREFIX)
+                if isinstance(resolver_node, (Decorator, FuncDef)) and resolver_node.name.startswith(RESOLVER_PREFIX)
             ]
+            # if 'Test' in ctx.cls.name:
+            #     from pprint import pprint
+            #     import ipdb
+            #     ipdb.set_trace()
+            #     # TODO: Delete
             for resolver in resolvers:
                 matching_attributes = [attribute for attribute in attributes if attribute == resolver]
                 assert resolver.context is not None
