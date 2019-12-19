@@ -320,3 +320,146 @@ class TestQuery(ObjectType):
 main:10: error: "interfaces" attribute in Meta class must be a tuple type
 Found 1 error in 1 file (checked 1 source file)
 
+
+[case test_custom_graphene_scalar_with_accurate_resolver_annotation_passes]
+from typing import Optional, Any
+from graphene import ObjectType, Field, Scalar, ResolveInfo, Argument
+
+
+class JSONString(Scalar):
+    serialize = str
+    parse = str
+
+    @staticmethod
+    def parse_literal(node: Any) -> Optional[Any]:
+        return 'hi'
+
+    @staticmethod
+    def parse_value(value: str) -> str:
+        return 'hi'
+
+class TestQuery(ObjectType):
+    field = Field(JSONString, arg=Argument(JSONString))
+
+    @staticmethod
+    def resolve_field(_: None, __: ResolveInfo, arg: Optional[str]) -> Optional[str]:
+        return 'hi'
+[out]
+Success: no issues found in 1 source file
+
+
+[case test_custom_graphene_scalar_with_inaccurate_resolver_annotation_fails]
+from typing import Optional, Any
+from graphene import ObjectType, Field, Scalar, ResolveInfo, Argument
+
+
+class JSONString(Scalar):
+    serialize = str
+    parse = str
+
+    @staticmethod
+    def parse_literal(node: Any) -> Optional[Any]:
+        return 'hi'
+
+    @staticmethod
+    def parse_value(value: str) -> str:
+        return 'hi'
+
+class TestQuery(ObjectType):
+    field = Field(JSONString, arg=Argument(JSONString))
+
+    @staticmethod
+    def resolve_field(_: None, __: ResolveInfo, arg: str) -> Optional[str]:
+        return 'hi'
+[out]
+main:21: error: Parameter "arg" has type str, expected type Optional[str]
+Found 1 error in 1 file (checked 1 source file)
+
+
+[case test_custom_graphene_scalar_with_parse_value_returning_any_passes]
+from typing import Optional, Any
+from graphene import ObjectType, Field, Scalar
+
+
+class JSONString(Scalar):
+    serialize = str
+    parse = str
+
+    @staticmethod
+    def parse_literal(node: Any) -> Optional[Any]:
+        return 'hi'
+
+    @staticmethod
+    def parse_value(value: str) -> Any:
+        return 'hi'
+
+class TestQuery(ObjectType):
+    field = Field(JSONString)
+[out]
+Success: no issues found in 1 source file
+
+
+[case test_custom_graphene_scalar_with_parse_value_without_return_type_annotation_passes]
+from typing import Optional, Any
+from graphene import ObjectType, Field, Scalar
+
+
+class JSONString(Scalar):
+    serialize = str
+    parse = str
+
+    @staticmethod
+    def parse_literal(node: Any) -> Optional[Any]:
+        return 'hi'
+
+    @staticmethod
+    def parse_value(value: str):
+        return 'hi'
+
+class TestQuery(ObjectType):
+    field = Field(JSONString)
+[out]
+Success: no issues found in 1 source file
+
+
+[case test_custom_graphene_scalar_with_non_static_parse_value_passes]
+from typing import Optional, Any
+from graphene import ObjectType, Field, Scalar
+
+
+class JSONString(Scalar):
+    serialize = str
+    parse = str
+
+    @staticmethod
+    def parse_literal(node: Any) -> Optional[Any]:
+        return 'hi'
+
+    def parse_value(self, value: str) -> str:
+        return 'hi'
+
+class TestQuery(ObjectType):
+    field = Field(JSONString)
+[out]
+Success: no issues found in 1 source file
+
+[case test_custom_graphene_scalar_with_non_function_parse_value_passes]
+from typing import Optional, Any
+from graphene import ObjectType, Field, Scalar
+
+
+class JSONString(Scalar):
+    serialize = str
+    parse = str
+
+    @staticmethod
+    def parse_literal(node: Any) -> Optional[Any]:
+        return 'hi'
+
+    parse_value = str
+
+class TestQuery(ObjectType):
+    field = Field(JSONString)
+[out]
+Success: no issues found in 1 source file
+
