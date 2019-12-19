@@ -463,3 +463,33 @@ class TestQuery(ObjectType):
 [out]
 Success: no issues found in 1 source file
 
+
+[case test_non_static_resolver_with_accurate_annotation_passes]
+from typing import Optional
+from graphene import ObjectType, Field, Argument, ResolveInfo, String
+
+class TestQuery(ObjectType):
+    field = Field(String, new_arg=Argument(String))
+
+    def resolve_field(_: None, __: ResolveInfo, new_arg: Optional[str]) -> Optional[str]:
+        return 'hi'
+
+[out]
+main:7: error: Self argument missing for a non-static method (or an invalid type for self)
+Found 1 error in 1 file (checked 1 source file)
+
+
+[case test_non_static_resolver_with_inaccurate_annotation_throws]
+from typing import Optional
+from graphene import ObjectType, Field, Argument, ResolveInfo, String
+
+class TestQuery(ObjectType):
+    field = Field(String, new_arg=Argument(String))
+
+    def resolve_field(_: None, __: ResolveInfo, new_arg: str) -> Optional[str]:
+        return 'hi'
+
+[out]
+main:7: error: Parameter "new_arg" has type str, expected type Optional[str]
+main:7: error: Self argument missing for a non-static method (or an invalid type for self)
+Found 2 errors in 1 file (checked 1 source file)
