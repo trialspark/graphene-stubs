@@ -284,6 +284,23 @@ class TestQuery(ObjectType):
 [out]
 Success: no issues found in 1 source file
 
+[case test_interface_attribute_forward_reference_passes]
+from typing import Optional
+from graphene import ObjectType, Field, Argument, ResolveInfo, String, Interface
+
+class TestQuery(ObjectType):
+    class Meta:
+        interfaces = (SimpleInterfaceAfter,)
+    
+    @staticmethod
+    def resolve_field(_: None, __: ResolveInfo, new_arg: Optional[str]) -> Optional[str]:
+        return 'hi'
+
+class SimpleInterfaceAfter(Interface):
+    field = Field(String, new_arg=Argument(String))
+[out]
+Success: no issues found in 1 source file
+
 
 [case test_interface_attribute_with_inaccurate_annotation_throws]
 from typing import Optional
