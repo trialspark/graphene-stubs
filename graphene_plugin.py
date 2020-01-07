@@ -199,7 +199,7 @@ def create_attribute_type(attribute_node: AssignmentStmt) -> Optional['TypeNodeI
     )
 
 
-def get_metaclass_attribute_types(class_body: List[Statement], ctx: ClassDefContext) -> List[Optional[TypeNodeInfo]]:
+def get_metaclass_attribute_types(class_body: List[Statement], ctx: ClassDefContext) -> Optional[List[Optional[TypeNodeInfo]]]:
     # Weakly support interfaces.
     interface_attributes: List[Optional[TypeNodeInfo]] = []
 
@@ -229,7 +229,9 @@ def get_metaclass_attribute_types(class_body: List[Statement], ctx: ClassDefCont
 
     for tuple_item in tuple_expr.items:
         tuple_item_node = tuple_item.node  # type: ignore[attr-defined]
-        interface_class_body = tuple_item_node.defn.defs.body  # TODO: Maybe make this safer
+        if not tuple_item_node:
+            return None
+        interface_class_body = tuple_item_node.defn.defs.body
         interface_attributes.extend([
             create_attribute_type(interface_attribute)
             for interface_attribute in interface_class_body
@@ -246,6 +248,9 @@ class GraphenePlugin(Plugin):
             class_body = ctx.cls.defs.body
 
             interface_attributes = get_metaclass_attribute_types(class_body, ctx)
+            if interface_attributes is None:
+                ctx.api.defer()
+                return
 
             # TODO: Improve performance by only getting type info for attributes that have
             # names matching resolvers.
