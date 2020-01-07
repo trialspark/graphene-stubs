@@ -270,11 +270,7 @@ class GraphenePlugin(Plugin):
                 # The check for Decorator assumes we're using `staticmethod`s.
                 if isinstance(resolver_node, (Decorator, FuncDef)) and resolver_node.name.startswith(RESOLVER_PREFIX)
             ]
-            # if 'Test' in ctx.cls.name:
-            #     from pprint import pprint
-            #     import ipdb
-            #     ipdb.set_trace()
-            #     # TODO: Delete
+
             for resolver in resolvers:
                 matching_attributes = [attribute for attribute in attributes if attribute == resolver]
                 assert resolver.context is not None
