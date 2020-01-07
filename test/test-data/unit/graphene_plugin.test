@@ -285,6 +285,9 @@ class TestQuery(ObjectType):
 Success: no issues found in 1 source file
 
 [case test_interface_attribute_forward_reference_passes]
+from typing import Optional
+from graphene import ObjectType, Field, Argument, ResolveInfo, String, Interface
+
 class TestQuery(ObjectType):
     class Meta:
         interfaces = (SimpleInterfaceAfter,)
