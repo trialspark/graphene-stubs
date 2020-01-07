@@ -4,6 +4,7 @@ from typing import Optional, Callable, Type, List, Union
 
 # from mypy.sametypes import is_same_type # TODO: Use this to compare types themselves instead of string representations
 from mypy.plugin import Plugin, ClassDefContext
+from mypy.types import AnyType, CallableType, UnboundType, Instance
 from mypy.nodes import AssignmentStmt, Decorator, CallExpr, Argument, TypeInfo, FuncDef, EllipsisExpr, StrExpr, \
     Statement, ClassDef, SymbolNode, TupleExpr
 
@@ -42,9 +43,12 @@ class TypeNodeInfo:
         return self.name != other.name  # type: ignore[attr-defined]
 
 
-def create_resolver_type(resolver_node: Decorator) -> 'TypeNodeInfo':
+def create_resolver_type(resolver_node: Union[Decorator, FuncDef]) -> 'TypeNodeInfo':
     name = resolver_node.name[len(RESOLVER_PREFIX):]  # Chop off the beginning of the name for easier matching later
-    func_def = resolver_node.func
+    if isinstance(resolver_node, FuncDef):
+        func_def = resolver_node
+    if isinstance(resolver_node, Decorator):
+        func_def = resolver_node.func
     uncleaned_return_type = str(func_def.type.ret_type)  # type: ignore[attr-defined, union-attr]
     return_type_name = uncleaned_return_type.replace('?', '') if func_def.type else None
     argument_list: List['ArgumentNode'] = []
@@ -119,13 +123,33 @@ def get_type_string_from_graphene_type( # pylint: disable=too-many-branches,too-
         and 'parse_value' in graphene_type.node.names  # type: ignore[attr-defined]
     ):
         # This is a scalar type.
+        # Look at the parse_value method on a Scalar class and figure out its
+        # return type, or default to Any.
         current_type = graphene_type.node['parse_value'].type  # type: ignore[attr-defined]
-        if current_type.is_type_obj():
+        if current_type is None:
+            current_node = graphene_type.node['parse_value'].node  # type: ignore[attr-defined]
+            if isinstance(current_node, Decorator):
+                # This is likely a static method.
+                current_type = current_node.func.type
+                # if isinstance(current_type.ret_type, AnyType):
+                #     return 'Any'
+                # return_type_name = current_type.ret_type.name
+            else:
+                # I don't know what this is, let's just return Any.
+                return 'Any'
+
+        if isinstance(current_type, CallableType):
+            if isinstance(current_type.ret_type, AnyType):
+                return 'Any'
+            if isinstance(current_type.ret_type, Instance):
+                return_type_name = current_type.ret_type.type.name
+            elif isinstance(current_type.ret_type, UnboundType):
+                return_type_name = current_type.ret_type.name  # type: ignore[attr-defined]
+        elif current_type.is_type_obj():
             return_type_name = current_type.type_object().name
-        else:
-            return_type_name = current_type.ret_type.type.name
 
     elif hasattr(graphene_type, 'node') and graphene_type.node is not None:  # type: ignore[attr-defined]
+        # Check for Enum types.
         graphene_type_node = graphene_type.node  # type: ignore[attr-defined]
         if hasattr(graphene_type_node, 'bases') and \
         GRAPHENE_ENUM_NAME in [base.type.fullname for base in graphene_type_node.bases]:
@@ -148,10 +172,13 @@ def create_attribute_type(attribute_node: AssignmentStmt) -> Optional['TypeNodeI
         # This is not a Field or Argument instantiation.
         return None
 
+    # `<attribute> = Field(String, match_cookie=Argument(List(NonNull(Float))))`
     name = attribute_node.lvalues[0].name  # type: ignore[attr-defined]
+    # `attribute = Field(<String>, <match_cookie=Argument(List(NonNull(Float)))>)`
     argument_nodes = attribute_node.rvalue.args  # type: ignore[attr-defined]
     if not argument_nodes:
         return None
+
     argument_node_names = attribute_node.rvalue.arg_names  # type: ignore[attr-defined]
     return_type_name = get_type_string_from_graphene_type(argument_nodes)
 
@@ -172,7 +199,8 @@ def create_attribute_type(attribute_node: AssignmentStmt) -> Optional['TypeNodeI
     )
 
 
-def get_metaclass_attribute_types(class_body: List[Statement], ctx: ClassDefContext) -> List[Optional[TypeNodeInfo]]:
+def get_metaclass_attribute_types(class_body: List[Statement],
+                                  ctx: ClassDefContext) -> Optional[List[Optional[TypeNodeInfo]]]:
     # Weakly support interfaces.
     interface_attributes: List[Optional[TypeNodeInfo]] = []
 
@@ -182,9 +210,6 @@ def get_metaclass_attribute_types(class_body: List[Statement], ctx: ClassDefCont
     interfaces: List[AssignmentStmt] = []
     if meta_classes:
         meta_class_body = meta_classes[0].defs.body
-        # for attribute in meta_class_body: # TODO: Delete
-        #     if isinstance(attribute, AssignmentStmt):
-        #         print(attribute.lvalues[0].name)
         interfaces = [
             attribute for attribute in meta_class_body
             if isinstance(attribute, AssignmentStmt) \
@@ -205,6 +230,8 @@ def get_metaclass_attribute_types(class_body: List[Statement], ctx: ClassDefCont
 
     for tuple_item in tuple_expr.items:
         tuple_item_node = tuple_item.node  # type: ignore[attr-defined]
+        if not tuple_item_node:
+            return None
         interface_class_body = tuple_item_node.defn.defs.body  # TODO: Maybe make this safer
         interface_attributes.extend([
             create_attribute_type(interface_attribute)
@@ -222,6 +249,9 @@ class GraphenePlugin(Plugin):
             class_body = ctx.cls.defs.body
 
             interface_attributes = get_metaclass_attribute_types(class_body, ctx)
+            if interface_attributes is None:
+                ctx.api.defer()
+                return
 
             # TODO: Improve performance by only getting type info for attributes that have
             # names matching resolvers.
@@ -238,8 +268,9 @@ class GraphenePlugin(Plugin):
                 create_resolver_type(resolver_node)
                 for resolver_node in class_body
                 # The check for Decorator assumes we're using `staticmethod`s.
-                if isinstance(resolver_node, Decorator) and resolver_node.name.startswith(RESOLVER_PREFIX)
+                if isinstance(resolver_node, (Decorator, FuncDef)) and resolver_node.name.startswith(RESOLVER_PREFIX)
             ]
+
             for resolver in resolvers:
                 matching_attributes = [attribute for attribute in attributes if attribute == resolver]
                 assert resolver.context is not None
