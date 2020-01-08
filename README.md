@@ -28,7 +28,7 @@ To run the tests:
 pytest -n 0 -p no:flaky
 ```
 
-Note that "-n 0 -p no:flaky" are related to pytest plugins you may not have installed so you may only have to run `pytest`.
+Note that `"-n 0 -p no:flaky"` are related to pytest plugins you may not have installed, so you may only have to run `pytest`.
 
 ## Plugin Details
 Because of the implementation and patterns used by Graphene, there are many cases where types are being declared and correspond to arguments used in resolvers, but it's hard for mypy to understand the correlation between them. Because of this, a plugin has been added that does nothing but throw additional errors when types don't seem to match up.
