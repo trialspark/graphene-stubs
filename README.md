@@ -14,22 +14,6 @@ Include the plugin in your mypy.ini file:
 plugins = graphene_plugin
 ```
 
-## Development Setup
-
-First, clone the repo and cd into it. Then _install_ the repo (`pip install -U graphene-stubs`). This shouldn't be necessary, but I can't get the tests to see the stubs correctly without installing.
-
-Then:
-```
-export MYPY_TEST_PREFIX=./test
-```
-
-To run the tests:
-```
-pytest -n 0 -p no:flaky
-```
-
-Note that `"-n 0 -p no:flaky"` are related to pytest plugins you may not have installed, so you may only have to run `pytest`.
-
 ## Plugin Details
 Because of the implementation and patterns used by Graphene, there are many cases where types are being declared and correspond to arguments used in resolvers, but it's hard for mypy to understand the correlation between them. Because of this, a plugin has been added that does nothing but throw additional errors when types don't seem to match up.
 
@@ -46,3 +30,19 @@ Currently not supported:
 - Checking return types of resolvers. This will require some careful definition and potentially the addition of a type generator.
 - Anything to do with `Mutation` classes.
 - Anything to do with parsing graphql query strings passed to `execute_query`.
+
+## Development Setup
+
+First, clone the repo and cd into it. Then _install_ the repo (`pip install -U graphene-stubs`). This shouldn't be necessary, but I can't get the tests to see the stubs correctly without installing.
+
+Then:
+```
+export MYPY_TEST_PREFIX=./test
+```
+
+To run the tests:
+```
+pytest -n 0 -p no:flaky
+```
+
+Note that `"-n 0 -p no:flaky"` are related to pytest plugins you may not have installed, so you may only have to run `pytest`.
