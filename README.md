@@ -3,7 +3,7 @@
 Mypy plugin and stubs for Graphene
 ====================================
 
-This is basically an attempt to copy the sqlalchemy-stubs repo. This is meant as a sandbox to play around with plugins and stubs until it gets used in the main Spark repo.
+This is basically an attempt to copy the pattern for publishing stubs + a plugin established by the sqlalchemy-stubs repo.
 
 ## Installation
 `pip install graphene-stubs`
@@ -11,22 +11,24 @@ This is basically an attempt to copy the sqlalchemy-stubs repo. This is meant as
 Include the plugin in your mypy.ini file:
 ```
 [mypy]
-plugins = sqlmypy
+plugins = graphene_plugin
 ```
 
 ## Development Setup
 
-First, clone the repo and cd into it, then:
+First, clone the repo and cd into it. Then _install_ the repo (`pip install -U graphene-stubs`). This shouldn't be necessary, but I can't get the tests to see the stubs correctly without installing.
+
+Then:
 ```
-git submodule update --init --recursive
-pip install -r dev-requirements.txt
 export MYPY_TEST_PREFIX=./test
 ```
 
-Then, to run the tests:
+To run the tests:
 ```
-pytest -n 0 -p no:flaky # "-p no:flaky" not required if you don't have the pytest flaky plugin installed
+pytest -n 0 -p no:flaky
 ```
+
+Note that "-n 0 -p no:flaky" are related to pytest plugins you may not have installed so you may only have to run `pytest`.
 
 ## Plugin Details
 Because of the implementation and patterns used by Graphene, there are many cases where types are being declared and correspond to arguments used in resolvers, but it's hard for mypy to understand the correlation between them. Because of this, a plugin has been added that does nothing but throw additional errors when types don't seem to match up.
