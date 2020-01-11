@@ -4,7 +4,7 @@ from typing import Optional, Callable, Type, List, Union
 
 # from mypy.sametypes import is_same_type # TODO: Use this to compare types themselves instead of string representations
 from mypy.plugin import Plugin, ClassDefContext
-from mypy.types import AnyType, CallableType, UnboundType, Instance
+from mypy.types import AnyType, CallableType, UnboundType, Instance, UnionType
 from mypy.nodes import AssignmentStmt, Decorator, CallExpr, Argument, TypeInfo, FuncDef, EllipsisExpr, StrExpr, \
     Statement, ClassDef, SymbolNode, TupleExpr
 
@@ -143,6 +143,8 @@ def get_type_string_from_graphene_type( # pylint: disable=too-many-branches,too-
                 return 'Any'
             if isinstance(current_type.ret_type, Instance):
                 return_type_name = current_type.ret_type.type.name
+            elif isinstance(current_type.ret_type, UnionType):
+                return_type_name = str(current_type.ret_type) # The __repr__ of a UnionType is "Union[X, Y, Z]"
             elif isinstance(current_type.ret_type, UnboundType):
                 return_type_name = current_type.ret_type.name  # type: ignore[attr-defined]
         elif current_type.is_type_obj():
