@@ -16,6 +16,7 @@ GRAPHENE_ENUM_NAME = 'graphene.types.enum.Enum'
 GRAPHENE_LIST_NAME = 'graphene.types.structures.List'
 GRAPHENE_NONNULL_NAME = 'graphene.types.structures.NonNull'
 GRAPHENE_OBJECTTYPE_NAME = 'graphene.types.objecttype.ObjectType'
+GRAPHENE_STRING_NAME = 'graphene.types.scalars.String'
 
 
 @dataclass
@@ -150,7 +151,9 @@ def get_python_type_from_graphene_type( # pylint: disable=too-many-branches,too-
                 ),
                 non_null,
             )
-        return graphene_type.callee.name
+        # This looks like a call to a scalar type, e.g. String().
+        # Setting the type to the callee allows it to be evaluated correctly by the next check.
+        graphene_type = graphene_type.callee
 
     if (
         hasattr(graphene_type, 'node')  \
