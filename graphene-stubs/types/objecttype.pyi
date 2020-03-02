@@ -2,7 +2,10 @@ from .base import BaseOptions as BaseOptions, BaseType as BaseType
 from .field import Field as Field
 from .interface import Interface as Interface
 from .utils import yank_fields_from_attrs as yank_fields_from_attrs
-from typing import Any, Dict, Iterable, Optional, Type
+from typing import Any, Dict, Iterable, Optional, Type, TypeVar, Generic
+
+
+RT = TypeVar('RT')
 
 
 class ObjectTypeOptions(BaseOptions):
@@ -10,7 +13,7 @@ class ObjectTypeOptions(BaseOptions):
     interfaces: Iterable[Type[Interface]] = ...
 
 
-class ObjectType(BaseType):
+class ObjectType(Generic[RT], BaseType):
     @classmethod
     def __init_subclass_with_meta__( # type: ignore[override]
         cls,
