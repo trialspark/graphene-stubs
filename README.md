@@ -43,7 +43,7 @@ class Person(ObjectType[PersonModel]):
         return person.first_name
 
     @staticmethod
-    def resolve_last_name(person: AnimalModel, _: ResolveInfo) -> str:  # fails
+    def resolve_last_name(person: AnimalModel, _: ResolveInfo) -> str:  # Fails, the type of `person` doesn't match the generic argument
         return person.species
 ```
 
