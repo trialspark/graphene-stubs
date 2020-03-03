@@ -2,7 +2,6 @@
 from dataclasses import dataclass
 from typing import Optional, Callable, Type as TypeOf, List, Union, Any
 
-from graphene import ObjectType
 from mypy.plugin import Plugin, ClassDefContext
 from mypy.types import AnyType, CallableType, UnboundType, Instance, TypeOfAny, Type, NoneType, UnionType
 from mypy.nodes import AssignmentStmt, Decorator, CallExpr, Argument, TypeInfo, FuncDef, EllipsisExpr, StrExpr, \
@@ -118,7 +117,7 @@ def get_python_type_from_graphene_type( # pylint: disable=too-many-branches,too-
         # This appears to be a graphene type instatiation.
         if not hasattr(graphene_type, 'callee'):
             # TODO: Figure out the None case (starargs?) AND check this is still happening
-            return AnyType(TypeOfAny.explicit)  # TODO: Improve this by using actual types
+            return AnyType(TypeOfAny.explicit)
         if graphene_type.callee.fullname == GRAPHENE_ARGUMENT_NAME:
             return get_python_type_from_graphene_type(ctx, graphene_type.args, graphene_type.arg_names)
         if graphene_type.callee.fullname == GRAPHENE_NONNULL_NAME:
@@ -154,7 +153,7 @@ def get_python_type_from_graphene_type( # pylint: disable=too-many-branches,too-
         return_type: Optional[Type] = None
         if isinstance(current_type, CallableType):
             if isinstance(current_type.ret_type, AnyType):
-                return AnyType(TypeOfAny.explicit)
+                return current_type.ret_type
             if isinstance(current_type.ret_type, Instance):
                 return_type = current_type.ret_type
             elif isinstance(current_type.ret_type, UnboundType):
@@ -358,6 +357,11 @@ def patch_object_type() -> None:
     Patches `graphene.ObjectType` to make it indexable at runttime. This is necessary for it be
     generic at typechecking time.
     """
+    # Lazily import graphene as it is actually an expensive thing to do and we don't want to slow down things at
+    # type-checking time.
+    from graphene import ObjectType  # pylint: disable=import-outside-toplevel
+
+
     ObjectTypeMetaclass = type(ObjectType)
 
     def __getitem__(cls: TypeOf[TypeOf[ObjectType]], _: Any) -> TypeOf[TypeOf[ObjectType]]:
