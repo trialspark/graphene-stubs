@@ -66,7 +66,7 @@ Currently not supported:
 
 ## Development Setup
 
-First, clone the repo and cd into it. Then _install_ the repo (`pip install -U graphene-stubs`). This shouldn't be necessary, but I can't get the tests to see the stubs correctly without installing.
+First, clone the repo and cd into it. Then _install_ the repo (`pip install -e .`).
 
 Then:
 ```
