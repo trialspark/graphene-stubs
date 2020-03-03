@@ -10,7 +10,7 @@ class TestQuery(ObjectType):
         return 'hi'
 
 [out]
-main:8: error: Parameter "new_arg" of type Optional[str] is missing, but required in resolver definition
+main:8: error: Parameter "new_arg" of type Union[builtins.str, None] is missing, but required in resolver definition
 Found 1 error in 1 file (checked 1 source file)
 
 
@@ -40,7 +40,7 @@ class TestQuery(ObjectType):
         return 'hi'
 
 [out]
-main:8: error: Parameter "new_arg" has type Optional[int], expected type Optional[str]
+main:8: error: Parameter "new_arg" has type Union[builtins.int, None], expected type Union[builtins.str, None]
 Found 1 error in 1 file (checked 1 source file)
 
 
@@ -56,7 +56,7 @@ class TestQuery(ObjectType):
         return 'hi'
 
 [out]
-main:8: error: Parameter "new_arg" has type Optional[str], expected type str
+main:8: error: Parameter "new_arg" has type Union[builtins.str, None], expected type builtins.str
 Found 1 error in 1 file (checked 1 source file)
 
 
@@ -72,7 +72,7 @@ class TestQuery(ObjectType):
         return 'hi'
 
 [out]
-main:8: error: Parameter "new_arg" has type Optional[str], expected type str
+main:8: error: Parameter "new_arg" has type Union[builtins.str, None], expected type builtins.str
 Found 1 error in 1 file (checked 1 source file)
 
 
@@ -88,7 +88,7 @@ class TestQuery(ObjectType):
         return 'hi'
 
 [out]
-main:8: error: Parameter "new_arg" has type str, expected type Optional[str]
+main:8: error: Parameter "new_arg" has type builtins.str, expected type Union[builtins.str, None]
 Found 1 error in 1 file (checked 1 source file)
 
 
@@ -104,7 +104,7 @@ class TestQuery(ObjectType):
         return 'hi'
 
 [out]
-main:8: error: Parameter "new_arg" has type Optional[str], expected type str
+main:8: error: Parameter "new_arg" has type Union[builtins.str, None], expected type builtins.str
 Found 1 error in 1 file (checked 1 source file)
 
 
@@ -120,7 +120,7 @@ class TestQuery(ObjectType):
         return 'hi'
 
 [out]
-main:8: error: Parameter "new_arg" has type str, expected type Optional[str]
+main:8: error: Parameter "new_arg" has type builtins.str, expected type Union[builtins.str, None]
 Found 1 error in 1 file (checked 1 source file)
 
 
@@ -162,7 +162,7 @@ class TestQuery(ObjectType):
         return 'hi'
 
 [out]
-main:11: error: Parameter "new_arg" has type Optional[MyEnum], expected type Optional[str]
+main:11: error: Parameter "new_arg" has type Union[main.MyEnum, None], expected type Union[builtins.str, None]
 Found 1 error in 1 file (checked 1 source file)
 
 
@@ -218,7 +218,7 @@ class TestQuery(ObjectType):
         return 'hi'
 
 [out]
-main:8: error: Parameter "new_arg" has type Optional[str], expected type Optional[List[Optional[str]]]
+main:8: error: Parameter "new_arg" has type Union[builtins.str, None], expected type Union[builtins.list[Union[builtins.str, None]], None]
 Found 1 error in 1 file (checked 1 source file)
 
 
@@ -248,7 +248,7 @@ class TestQuery(ObjectType):
     def resolve_field(_: None, __: ResolveInfo, new_arg: Optional[str]) -> Optional[str]:
         return 'hi'
 [out]
-main:8: error: Parameter "new_arg" has type Optional[str], expected type Optional[dict]
+main:8: error: Parameter "new_arg" has type Union[builtins.str, None], expected type Union[builtins.dict[Any, Any], None]
 Found 1 error in 1 file (checked 1 source file)
 
 
@@ -318,7 +318,7 @@ class TestQuery(ObjectType):
     def resolve_field(_: None, __: ResolveInfo, new_arg: Optional[int]) -> Optional[str]:
         return 'hi'
 [out]
-main:13: error: Parameter "new_arg" has type Optional[int], expected type Optional[str]
+main:13: error: Parameter "new_arg" has type Union[builtins.int, None], expected type Union[builtins.str, None]
 Found 1 error in 1 file (checked 1 source file)
 
 
@@ -389,7 +389,7 @@ class TestQuery(ObjectType):
     def resolve_field(_: None, __: ResolveInfo, arg: str) -> Optional[str]:
         return 'hi'
 [out]
-main:21: error: Parameter "arg" has type str, expected type Optional[str]
+main:21: error: Parameter "arg" has type builtins.str, expected type Union[builtins.str, None]
 Found 1 error in 1 file (checked 1 source file)
 
 
@@ -507,6 +507,110 @@ class TestQuery(ObjectType):
         return 'hi'
 
 [out]
-main:7: error: Parameter "new_arg" has type str, expected type Optional[str]
+main:7: error: Parameter "new_arg" has type builtins.str, expected type Union[builtins.str, None]
 main:7: error: Self argument missing for a non-static method (or an invalid type for self)
 Found 2 errors in 1 file (checked 1 source file)
+
+
+[case test_resolver_with_inaccurate_previous_argument_passes]
+from graphene import ObjectType, Field, ResolveInfo, String
+
+
+class RuntimePerson:
+    name: str
+
+
+class Person(ObjectType[RuntimePerson]):
+    name = Field(String, required=True)
+
+    @staticmethod
+    def resolve_name(person: RuntimePerson, _: ResolveInfo) -> str:
+        return ''
+
+[out]
+Success: no issues found in 1 source file
+
+
+[case test_resolver_with_inaccurate_previous_argument_throws]
+from graphene import ObjectType, Field, ResolveInfo, String
+
+
+class RuntimePerson:
+    name: str
+
+
+class NotAPerson:
+    num_of_tails: int
+
+
+class Person(ObjectType[RuntimePerson]):
+    name = Field(String, required=True)
+
+    @staticmethod
+    def resolve_name(person: NotAPerson, _: ResolveInfo) -> str:
+        return ''
+
+[out]
+main:16: error: Parameter "person" has type main.NotAPerson, expected type main.RuntimePerson
+Found 1 error in 1 file (checked 1 source file)
+
+
+[case test_resolver_with_inaccurate_union_previous_argument_throws]
+from typing import Union
+
+from graphene import ObjectType, Field, ResolveInfo, String
+
+
+class A:
+    name: str
+
+class B:
+    name: str
+
+class C:
+    name: str
+
+
+RT = Union[A, C]
+
+
+class Person(ObjectType[RT]):
+    name = Field(String, required=True)
+
+    @staticmethod
+    def resolve_name(person: Union[A, B], _: ResolveInfo) -> str:
+        return ''
+
+[out]
+main:23: error: Parameter "person" has type Union[main.A, main.B], expected type Union[main.A, main.C]
+Found 1 error in 1 file (checked 1 source file)
+
+
+[case test_resolver_with_same_union_previous_argument_passes]
+from typing import Union
+
+from graphene import ObjectType, Field, ResolveInfo, String
+
+
+class A:
+    name: str
+
+class B:
+    name: str
+
+class C:
+    name: str
+
+
+RT = Union[A, C]
+
+
+class Person(ObjectType[RT]):
+    name = Field(String, required=True)
+
+    @staticmethod
+    def resolve_name(person: RT, _: ResolveInfo) -> str:
+        return ''
+
+[out]
+Success: no issues found in 1 source file

@@ -1,2 +1,5 @@
 *.mypy_cache
 *.pyc
+
+# IDE configs
+.vscode
