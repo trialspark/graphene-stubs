@@ -16,7 +16,6 @@ GRAPHENE_ENUM_NAME = 'graphene.types.enum.Enum'
 GRAPHENE_LIST_NAME = 'graphene.types.structures.List'
 GRAPHENE_NONNULL_NAME = 'graphene.types.structures.NonNull'
 GRAPHENE_OBJECTTYPE_NAME = 'graphene.types.objecttype.ObjectType'
-GRAPHENE_STRING_NAME = 'graphene.types.scalars.String'
 
 
 @dataclass
