@@ -1,11 +1,13 @@
 # pylint: disable=no-name-in-module
 from dataclasses import dataclass
-from typing import Optional, Callable, Type as TypeOf, List, Union, Any
+from typing import Optional, Callable, Type as TypeOf, List, Union, Any, cast
 
-from mypy.plugin import Plugin, ClassDefContext
-from mypy.types import AnyType, CallableType, UnboundType, Instance, TypeOfAny, Type, NoneType, UnionType
 from mypy.nodes import AssignmentStmt, Decorator, CallExpr, Argument, TypeInfo, FuncDef, EllipsisExpr, StrExpr, \
     Statement, ClassDef, SymbolNode, TupleExpr
+from mypy.plugin import Plugin, ClassDefContext
+from mypy.state import strict_optional_set
+from mypy.subtypes import is_subtype, is_equivalent
+from mypy.types import AnyType, CallableType, UnboundType, Instance, TypeOfAny, Type, NoneType, UnionType
 
 RESOLVER_PREFIX = 'resolve_'
 GRAPHENE_ARGUMENT_NAME = 'graphene.types.argument.Argument'
@@ -75,10 +77,24 @@ def wrap_in_nonnull(python_type: Optional[Type], non_null: bool) -> Optional[Typ
     return UnionType((python_type, NoneType()))
 
 
-def wrap_in_list(ctx: ClassDefContext, python_type: Optional[Type]) -> Optional[Type]:
+def wrap_in_list(ctx: ClassDefContext, python_type: Optional[Type], *, covariant: bool) -> Optional[Type]:
     if not python_type or isinstance(python_type, AnyType):
         return python_type
-    return ctx.api.named_type('list', args=[python_type])
+
+    if covariant:
+        wrapper_info = ctx.api.lookup_fully_qualified('typing.Sequence')
+    else:
+        wrapper_info = ctx.api.lookup_fully_qualified('builtins.list')
+    assert isinstance(wrapper_info.node, TypeInfo)
+
+    return Instance(wrapper_info.node, [python_type])
+
+
+def find_object_base(type_info: TypeInfo, base_name: str) -> Optional[Instance]:
+    return next(
+        (base for base in type_info.bases if base.type.fullname == base_name),
+        None,
+    )
 
 
 def get_python_type_from_graphene_type( # pylint: disable=too-many-branches,too-many-return-statements
@@ -86,6 +102,7 @@ def get_python_type_from_graphene_type( # pylint: disable=too-many-branches,too-
     graphene_types: List[TypeInfo],
     arg_names: Optional[List[str]] = None,
     non_null: bool = False,
+    covariant: bool = False,
 ) -> Type:
     if arg_names is None:
         arg_names = []
@@ -119,12 +136,18 @@ def get_python_type_from_graphene_type( # pylint: disable=too-many-branches,too-
             # TODO: Figure out the None case (starargs?) AND check this is still happening
             return AnyType(TypeOfAny.explicit)
         if graphene_type.callee.fullname == GRAPHENE_ARGUMENT_NAME:
-            return get_python_type_from_graphene_type(ctx, graphene_type.args, graphene_type.arg_names)
+            return get_python_type_from_graphene_type(
+                ctx, graphene_type.args, graphene_type.arg_names, covariant=covariant
+            )
         if graphene_type.callee.fullname == GRAPHENE_NONNULL_NAME:
-            return get_python_type_from_graphene_type(ctx, graphene_type.args, non_null=True)
+            return get_python_type_from_graphene_type(ctx, graphene_type.args, non_null=True, covariant=covariant)
         if graphene_type.callee.fullname == GRAPHENE_LIST_NAME:
             return wrap_in_nonnull(
-                wrap_in_list(ctx, get_python_type_from_graphene_type(ctx, graphene_type.args)),
+                wrap_in_list(
+                    ctx,
+                    get_python_type_from_graphene_type(ctx, graphene_type.args, covariant=covariant),
+                    covariant=covariant
+                ),
                 non_null,
             )
         return graphene_type.callee.name
@@ -161,12 +184,18 @@ def get_python_type_from_graphene_type( # pylint: disable=too-many-branches,too-
         elif current_type.is_type_obj():
             return_type = Instance(current_type.type_object(), args=[])
 
-    elif hasattr(graphene_type, 'node') and graphene_type.node is not None:  # type: ignore[attr-defined]
-        # Check for Enum types.
-        graphene_type_node = graphene_type.node  # type: ignore[attr-defined]
-        if hasattr(graphene_type_node, 'bases') and \
-        GRAPHENE_ENUM_NAME in [base.type.fullname for base in graphene_type_node.bases]:
+    elif (
+        getattr(graphene_type, 'node', None) is not None
+        and hasattr(graphene_type.node, 'bases')  # type: ignore[attr-defined]
+    ):
+        graphene_type_node = cast(TypeInfo, graphene_type.node)  # type: ignore[attr-defined]
+        enum_base = find_object_base(graphene_type_node, GRAPHENE_ENUM_NAME)
+        objecttype_base = find_object_base(graphene_type_node, GRAPHENE_OBJECTTYPE_NAME)
+
+        if enum_base:
             return_type = ctx.api.named_type('str')
+        elif objecttype_base:
+            return_type = objecttype_base.args[0]
         else:
             return AnyType(TypeOfAny.explicit)
     else:
@@ -193,7 +222,7 @@ def create_attribute_type(ctx: ClassDefContext, attribute_node: AssignmentStmt) 
         return None
 
     argument_node_names = attribute_node.rvalue.arg_names  # type: ignore[attr-defined]
-    return_type = get_python_type_from_graphene_type(ctx, argument_nodes)
+    return_type = get_python_type_from_graphene_type(ctx, argument_nodes, argument_node_names, covariant=True)
 
     argument_list: List['ArgumentNode'] = []
     names_to_nodes = zip(argument_node_names[1:], argument_nodes[1:])
@@ -201,7 +230,7 @@ def create_attribute_type(ctx: ClassDefContext, attribute_node: AssignmentStmt) 
     for argument_name, argument_node in names_to_nodes:
         if argument_name in ['description', 'required', 'default_value', 'deprecation_reason']:
             continue
-        python_type = get_python_type_from_graphene_type(ctx, [argument_node], argument_node_names)
+        python_type = get_python_type_from_graphene_type(ctx, [argument_node], argument_node_names, covariant=False)
         argument_list.append(ArgumentNode(name=argument_name, type=python_type, context=argument_node))
 
     return TypeNodeInfo(
@@ -210,11 +239,6 @@ def create_attribute_type(ctx: ClassDefContext, attribute_node: AssignmentStmt) 
         arguments=argument_list,
         context=attribute_node,
     )
-
-def are_types_equal(left: Type, right: Type) -> bool:
-    if isinstance(left, AnyType) or isinstance(right, AnyType):
-        return True
-    return left == right
 
 
 def get_metaclass_attribute_types(class_body: List[Statement],
@@ -267,13 +291,10 @@ def get_type_mismatch_error_message(arg_name: str, *, graphene_type: Type, resol
 class GraphenePlugin(Plugin):
     @staticmethod
     def get_base_class_hook(fullname: str) -> Optional[Callable[[ClassDefContext], None]]:
+        @strict_optional_set(True)
         def resolver_and_attribute_type_check(ctx: ClassDefContext) -> None:
             class_body = ctx.cls.defs.body
-            class_bases = ctx.cls.info.bases
-            objecttype_base = next(
-                (base for base in class_bases if base.type.fullname == GRAPHENE_OBJECTTYPE_NAME),
-                None,
-            )
+            objecttype_base = find_object_base(ctx.cls.info, GRAPHENE_OBJECTTYPE_NAME)
 
             if not objecttype_base:
                 return
@@ -310,7 +331,7 @@ class GraphenePlugin(Plugin):
                     continue
 
                 previous_object_argument = resolver.arguments[0]
-                if not are_types_equal(previous_object_argument.type, runtime_type):
+                if not is_equivalent(previous_object_argument.type, runtime_type):
                     ctx.api.fail(
                             get_type_mismatch_error_message(
                                 previous_object_argument.name,
@@ -323,6 +344,14 @@ class GraphenePlugin(Plugin):
 
                 # Assume there's only one match, but if there is more than one, compare against the last one defined.
                 matching_attribute = matching_attributes[-1]
+
+                if not is_subtype(resolver.return_type, matching_attribute.return_type):
+                    ctx.api.fail(
+                        f'Resolver returns type {resolver.return_type}, expected type {matching_attribute.return_type}',
+                        resolver.context,
+                    )
+                    continue
+
                 for arg in matching_attribute.arguments:
                     matching_resolver_arguments = [argument for argument in resolver.arguments if argument == arg]
                     if not matching_resolver_arguments:
@@ -333,7 +362,7 @@ class GraphenePlugin(Plugin):
                         continue
 
                     matching_resolver_argument = matching_resolver_arguments[0]
-                    if not are_types_equal(matching_resolver_argument.type, arg.type):
+                    if not is_equivalent(matching_resolver_argument.type, arg.type):
                         ctx.api.fail(
                             get_type_mismatch_error_message(
                                 matching_resolver_argument.name,

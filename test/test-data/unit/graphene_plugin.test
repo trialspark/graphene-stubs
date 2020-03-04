@@ -140,7 +140,7 @@ class TestQuery(ObjectType):
     )
 
     @staticmethod
-    def resolve_field(_: None, __: ResolveInfo, new_arg: str) -> Optional[str]:
+    def resolve_field(_: None, __: ResolveInfo, new_arg: str) -> str:
         return 'hi'
 
 [out]
@@ -614,3 +614,139 @@ class Person(ObjectType[RT]):
 
 [out]
 Success: no issues found in 1 source file
+
+
+[case test_resolver_with_wrong_return_type_fails]
+from graphene import ObjectType, Field, ResolveInfo, String
+
+class Person(ObjectType):
+    name = Field(String, required=True)
+
+    @staticmethod
+    def resolve_name(_: None, __: ResolveInfo) -> int:
+        return 0
+
+[out]
+main:7: error: Resolver returns type builtins.int, expected type builtins.str
+Found 1 error in 1 file (checked 1 source file)
+
+
+[case test_resolver_with_wrong_object_return_type_fails]
+from typing import List as ListType
+
+from graphene import ObjectType, Field, ResolveInfo, String, List, NonNull
+
+
+class AnimalModel:
+    species: str
+
+
+class PersonModel:
+    pets: ListType[AnimalModel]
+
+
+class EnemyModel:
+    how_they_have_wronged_me: str
+
+
+class Animal(ObjectType[AnimalModel]):
+    species = Field(String, required=True)
+
+
+class Person(ObjectType[PersonModel]):
+    pets = Field(List(NonNull(Animal)), required=True)
+
+    @staticmethod
+    def resolve_pets(person: PersonModel, _: ResolveInfo) -> ListType[EnemyModel]:
+        return []
+
+[out]
+main:26: error: Resolver returns type builtins.list[main.EnemyModel], expected type typing.Sequence[main.AnimalModel]
+Found 1 error in 1 file (checked 1 source file)
+
+
+[case test_resolver_with_correct_object_return_type_passes]
+from typing import List as ListType
+
+from graphene import ObjectType, Field, ResolveInfo, String, List, NonNull
+
+
+class AnimalModel:
+    species: str
+
+
+class PersonModel:
+    pets: ListType[AnimalModel]
+
+
+class Animal(ObjectType[AnimalModel]):
+    species = Field(String, required=True)
+
+
+class Person(ObjectType[PersonModel]):
+    pets = Field(List(NonNull(Animal)), required=True)
+
+    @staticmethod
+    def resolve_pets(person: PersonModel, _: ResolveInfo) -> ListType[AnimalModel]:
+        return []
+
+[out]
+Success: no issues found in 1 source file
+
+
+[case test_resolver_with_correct_object_union_return_type_passes]
+from typing import List as ListType, Union
+
+from graphene import ObjectType, Field, ResolveInfo, String, List, NonNull
+
+
+class AnimalModel:
+    species: str
+
+
+class ForeignAnimalModel:
+    species: str
+
+
+class PersonModel:
+    pets: ListType[AnimalModel]
+
+
+RuntimeAnimal = Union[AnimalModel, ForeignAnimalModel]
+
+
+class Animal(ObjectType[RuntimeAnimal]):
+    species = Field(String, required=True)
+
+
+class Person(ObjectType[PersonModel]):
+    pets = Field(List(NonNull(Animal)), required=True)
+
+    @staticmethod
+    def resolve_pets(person: PersonModel, _: ResolveInfo) -> ListType[AnimalModel]:
+        return []
+
+[out]
+Success: no issues found in 1 source file
+
+
+[case test_resolver_with_mismatched_return_nullability_fails]
+from typing import List as ListType, Optional
+
+from graphene import ObjectType, Field, ResolveInfo, String
+
+
+class PersonModel:
+    name: Optional[str]
+
+
+class Person(ObjectType[PersonModel]):
+    name = Field(String, required=True)
+
+    @staticmethod
+    def resolve_name(person: PersonModel, _: ResolveInfo) -> Optional[str]:
+        return ''
+
+[out]
+main:14: error: Resolver returns type Union[builtins.str, None], expected type builtins.str
+Found 1 error in 1 file (checked 1 source file)
