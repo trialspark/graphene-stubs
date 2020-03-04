@@ -56,11 +56,11 @@ For classes with the base class `ObjectType`:
 - Erroring when arguments are included in a field attribute definition, but are missing in the resolver method's signature.
 - Erroring when resolvers are defined that don't have corresponding field attributes.
 - Erroring when the types defined in field attribute `Argument`s don't match up with type annotations in resolvers *perfectly*.
+- Erroring when a resolver's return type does not match the corresponding field attribute definition
 - Some amount of robustness for all of the above features, including type checking custom scalar types out of the box, following `Interface`s defined in a `Meta` class on the `ObjectType` to see additional fields, typing `graphene.Enum` types correctly as strings, supporting both static and non-static resolver methods.
 
 
 Currently not supported:
-- Checking return types of resolvers. This will require some careful definition and potentially the addition of a type generator.
 - Anything to do with `Mutation` classes.
 - Anything to do with parsing graphql query strings passed to `execute_query`.
 
