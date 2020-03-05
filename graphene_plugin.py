@@ -150,7 +150,9 @@ def get_python_type_from_graphene_type( # pylint: disable=too-many-branches,too-
                 ),
                 non_null,
             )
-        return graphene_type.callee.name
+        # This looks like a call to a scalar type, e.g. String().
+        # Setting the type to the callee allows it to be evaluated correctly by the next check.
+        graphene_type = graphene_type.callee
 
     if (
         hasattr(graphene_type, 'node')  \

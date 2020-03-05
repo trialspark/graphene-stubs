@@ -750,3 +750,20 @@ class Person(ObjectType[PersonModel]):
 [out]
 main:14: error: Resolver returns type Union[builtins.str, None], expected type builtins.str
 Found 1 error in 1 file (checked 1 source file)
+
+
+[case test_resolver_with_scalar_type_is_correct]
+from graphene import ObjectType, Field, ResolveInfo, String
+from typing import Optional
+
+class A:
+    name: str
+
+class TestQuery(ObjectType):
+    name = Field(A, name=String())
+
+    def resolve_name(self, info: ResolveInfo, name: Optional[str]) -> None:
+        return None
+
+[out]
+Success: no issues found in 1 source file
