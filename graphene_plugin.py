@@ -2,8 +2,10 @@
 from dataclasses import dataclass
 from itertools import chain
 import re
-from typing import Optional, Callable, Type as TypeOf, List, Any, Dict
+from typing import Optional, Callable, Type as TypeOf, List, Any, Dict, cast
 
+from mypy.checker import TypeChecker
+from mypy.checkmember import analyze_member_access
 from mypy.nodes import AssignmentStmt, Decorator, CallExpr, Argument, TypeInfo, FuncDef, Statement, ClassDef, \
     TupleExpr, NameExpr, Expression, MypyFile, ExpressionStmt, MemberExpr, Var, SymbolTableNode, MDEF, CastExpr
 from mypy.options import Options
@@ -628,8 +630,27 @@ class GraphenePlugin(Plugin):
             for field in objecttype_info.fields.values():
                 resolver = objecttype_info.resolvers.get(field.name)
 
+                # If no resolver function is defined, type-check the behavior of the graphene default resolver
                 if not resolver:
-                    # TODO: check that default resolver will reference the correct type
+                    # Note: `analyze_member_access` will call `ctx.api.fail()` if the provided type doesn't have
+                    # a member with the given name at all. So our code only needs to do the subtype check.
+                    default_resolver_return_type = analyze_member_access(
+                        field.name,
+                        objecttype_info.runtime_type,
+                        field.context,
+                        False,  # is_lvalue
+                        False,  # is_super
+                        False,  # is_operator
+                        ctx.api.msg,
+                        original_type=objecttype_info.runtime_type,
+                        chk=cast(TypeChecker, ctx.api),
+                    )
+                    if not is_subtype(default_resolver_return_type, field.type):
+                        ctx.api.fail(
+                            f'Field expects type {field.type} but {objecttype_info.runtime_type}.{field.name} has type '
+                            f'{default_resolver_return_type}',
+                            field.context,
+                        )
                     continue
 
                 # Check that the resolver's "previous" (first) argument has the correct type

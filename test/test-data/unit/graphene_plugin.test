@@ -1080,3 +1080,81 @@ Schema(query=TestQuery)
 
 [out]
 Success: no issues found in 1 source file
+
+
+[case test_default_resolver_accessing_valid_attribute_passes]
+from typing import List as ListType, Optional
+
+from graphene import ObjectType, Field, ResolveInfo, String
+
+
+class PersonModel:
+    def __init__(self) -> None:
+        self.name = 'foo'
+
+
+class Person(ObjectType[PersonModel]):
+    name = Field(String, required=True)
+
+
+[out]
+Success: no issues found in 1 source file 
+
+
+[case test_default_resolver_accessing_invalid_attribute_fails]
+from typing import List as ListType, Optional
+
+from graphene import ObjectType, Field, ResolveInfo, String
+
+
+class PersonModel(object):
+    def __init__(self) -> None:
+        self.name: Optional[str] = 'foo'
+
+
+class Person(ObjectType[PersonModel]):
+    name = Field(String, required=True)
+
+
+[out]
+main:12: error: Field expects type builtins.str but main.PersonModel.name has type Union[builtins.str, None]
+Found 1 error in 1 file (checked 1 source file)
+
+
+[case test_default_resolver_subtype_passes]
+from typing import List as ListType
+
+from graphene import ObjectType, Field, ResolveInfo, String
+
+
+class PersonModel(object):
+    def __init__(self) -> None:
+        self.name = 'foo'
+
+
+class Person(ObjectType[PersonModel]):
+    name = Field(String)
+
+
+[out]
+Success: no issues found in 1 source file 
+
+
+[case test_default_resolver_missing_attribute_fails]
+from typing import List as ListType
+
+from graphene import ObjectType, Field, ResolveInfo, String
+
+
+class PersonModel(object):
+    def __init__(self) -> None:
+        self.name = 'foo'
+
+
+class Person(ObjectType[PersonModel]):
+    first_name = Field(String)
+
+
+[out]
+main:12: error: "PersonModel" has no attribute "first_name"
+Found 1 error in 1 file (checked 1 source file)
