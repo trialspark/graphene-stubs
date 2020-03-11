@@ -142,7 +142,8 @@ def _get_python_type_from_graphene_field_first_argument(
     type_: Optional[Type] = None
 
     if isinstance(argument, NameExpr) and isinstance(argument.node, TypeInfo):
-        # This is just the name of something (e.g `String`, `Integer`, `MyObjectType`, etc.)
+        # This is just a plain graphene type that doesn't wrap anything (i.e `String`, `MyObjectType`,
+        # **not** `List(String)`, `NonNull(MyObjectType), etc.)``
         is_scalar = _type_is_a(argument.node, GRAPHENE_SCALAR_NAME)
         is_objecttype = _type_is_a(argument.node, GRAPHENE_OBJECTTYPE_NAME)
         is_enum = _type_is_a(argument.node, GRAPHENE_ENUM_NAME)
@@ -269,7 +270,7 @@ def _get_python_type_from_graphene_field_instantiation(
     semanal: SemanticAnalyzerPluginInterface, expression: Expression, *, covariant: bool
 ) -> Type:
     """
-    Given an `Field()` defintion, return the python type that the resolver should return at runtime.
+    Given an `Field()` definition, return the python type that the resolver should return at runtime.
 
     E.g. `Field(List(NonNull(String)), required=True) -> builtins.list[builtins.str]`
     """
@@ -334,6 +335,8 @@ def _get_objecttype_subclass_runtime_type(type_info: TypeInfo) -> Type:
     """
 
     objecttype_base = next(base for base in type_info.bases if base.type.fullname == GRAPHENE_OBJECTTYPE_NAME)
+    # Note: even if no type argument was passed to `ObjectType` when it was sub-classed, there will still be
+    # an item in the `args` list below. It will just be `Any`.
     return objecttype_base.args[0]
 
 
