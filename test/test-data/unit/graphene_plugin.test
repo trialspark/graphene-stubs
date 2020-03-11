@@ -1,6 +1,6 @@
 [case test_argument_missing_from_resolver_throws]
 from typing import Optional
-from graphene import ObjectType, Field, Argument, ResolveInfo, String
+from graphene import ObjectType, Field, Argument, ResolveInfo, String, Schema
 
 class TestQuery(ObjectType):
     field = Field(String, new_arg=Argument(String))
@@ -8,6 +8,8 @@ class TestQuery(ObjectType):
     @staticmethod
     def resolve_field(_: None, __: ResolveInfo) -> Optional[str]:
         return 'hi'
+
+schema = Schema(query=TestQuery)
 
 [out]
 main:8: error: Parameter "new_arg" of type Union[builtins.str, None] is missing, but required in resolver definition
@@ -16,12 +18,15 @@ Found 1 error in 1 file (checked 1 source file)
 
 [case test_missing_field_throws]
 from typing import Optional
-from graphene import ObjectType, Argument, ResolveInfo, String
+from graphene import ObjectType, Argument, ResolveInfo, String, Schema
 
 class TestQuery(ObjectType):
     @staticmethod
     def resolve_field(_: None, __: ResolveInfo) -> Optional[str]:
         return 'hi'
+
+
+Schema(query=TestQuery)
 
 [out]
 main:6: error: No field with name "field" defined
@@ -30,7 +35,7 @@ Found 1 error in 1 file (checked 1 source file)
 
 [case test_type_mismatch_throws]
 from typing import Optional
-from graphene import ObjectType, Argument, ResolveInfo, String, Field
+from graphene import ObjectType, Argument, ResolveInfo, String, Field, Schema
 
 class TestQuery(ObjectType):
     field = Field(String, new_arg=Argument(String))
@@ -39,6 +44,9 @@ class TestQuery(ObjectType):
     def resolve_field(_: None, __: ResolveInfo, new_arg: Optional[int]) -> Optional[str]:
         return 'hi'
 
+
+Schema(query=TestQuery)
+
 [out]
 main:8: error: Parameter "new_arg" has type Union[builtins.int, None], expected type Union[builtins.str, None]
 Found 1 error in 1 file (checked 1 source file)
@@ -46,7 +54,7 @@ Found 1 error in 1 file (checked 1 source file)
 
 [case test_optional_annotation_on_nonnull_variable_throws]
 from typing import Optional
-from graphene import ObjectType, Argument, ResolveInfo, String, Field, NonNull
+from graphene import ObjectType, Argument, ResolveInfo, String, Field, NonNull, Schema
 
 class TestQuery(ObjectType):
     field = Field(String, new_arg=Argument(NonNull(String)))
@@ -55,6 +63,9 @@ class TestQuery(ObjectType):
     def resolve_field(_: None, __: ResolveInfo, new_arg: Optional[str]) -> Optional[str]:
         return 'hi'
 
+
+Schema(query=TestQuery)
+
 [out]
 main:8: error: Parameter "new_arg" has type Union[builtins.str, None], expected type builtins.str
 Found 1 error in 1 file (checked 1 source file)
@@ -62,7 +73,7 @@ Found 1 error in 1 file (checked 1 source file)
 
 [case test_optional_annotation_on_required_variable_throws]
 from typing import Optional
-from graphene import ObjectType, Argument, ResolveInfo, String, Field
+from graphene import ObjectType, Argument, ResolveInfo, String, Field, Schema
 
 class TestQuery(ObjectType):
     field = Field(String, new_arg=Argument(String, required=True))
@@ -71,6 +82,9 @@ class TestQuery(ObjectType):
     def resolve_field(_: None, __: ResolveInfo, new_arg: Optional[str]) -> Optional[str]:
         return 'hi'
 
+
+Schema(query=TestQuery)
+
 [out]
 main:8: error: Parameter "new_arg" has type Union[builtins.str, None], expected type builtins.str
 Found 1 error in 1 file (checked 1 source file)
@@ -78,7 +92,7 @@ Found 1 error in 1 file (checked 1 source file)
 
 [case test_non_optional_annotation_on_variable_with_required_set_to_false_throws]
 from typing import Optional
-from graphene import ObjectType, Argument, ResolveInfo, String, Field
+from graphene import ObjectType, Argument, ResolveInfo, String, Field, Schema
 
 class TestQuery(ObjectType):
     field = Field(String, new_arg=Argument(String, required=False))
@@ -87,30 +101,17 @@ class TestQuery(ObjectType):
     def resolve_field(_: None, __: ResolveInfo, new_arg: str) -> Optional[str]:
         return 'hi'
 
+
+Schema(query=TestQuery)
+
 [out]
 main:8: error: Parameter "new_arg" has type builtins.str, expected type Union[builtins.str, None]
 Found 1 error in 1 file (checked 1 source file)
 
 
-[case test_optional_annotation_on_variable_with_non_none_default_value_throws]
-from typing import Optional
-from graphene import ObjectType, Argument, ResolveInfo, String, Field
-
-class TestQuery(ObjectType):
-    field = Field(String, new_arg=Argument(String, default_value='hi'))
-
-    @staticmethod
-    def resolve_field(_: None, __: ResolveInfo, new_arg: Optional[str]) -> Optional[str]:
-        return 'hi'
-
-[out]
-main:8: error: Parameter "new_arg" has type Union[builtins.str, None], expected type builtins.str
-Found 1 error in 1 file (checked 1 source file)
-
-
 [case test_non_optional_annotation_on_variable_with_none_default_value_throws]
 from typing import Optional
-from graphene import ObjectType, Argument, ResolveInfo, String, Field
+from graphene import ObjectType, Argument, ResolveInfo, String, Field, Schema
 
 class TestQuery(ObjectType):
     field = Field(String, new_arg=Argument(String, default_value=None))
@@ -119,6 +120,9 @@ class TestQuery(ObjectType):
     def resolve_field(_: None, __: ResolveInfo, new_arg: str) -> Optional[str]:
         return 'hi'
 
+
+Schema(query=TestQuery)
+
 [out]
 main:8: error: Parameter "new_arg" has type builtins.str, expected type Union[builtins.str, None]
 Found 1 error in 1 file (checked 1 source file)
@@ -126,7 +130,7 @@ Found 1 error in 1 file (checked 1 source file)
 
 [case test_non_field_argument_attributes_are_ignored]
 from typing import Optional
-from graphene import ObjectType, Argument, ResolveInfo, String, Field
+from graphene import ObjectType, Argument, ResolveInfo, String, Field, Schema
 
 class TestQuery(ObjectType):
     # Test to make sure name, description, required, and default_value arguments aren't
@@ -143,13 +147,16 @@ class TestQuery(ObjectType):
     def resolve_field(_: None, __: ResolveInfo, new_arg: str) -> str:
         return 'hi'
 
+
+Schema(query=TestQuery)
+
 [out]
 Success: no issues found in 1 source file
 
 
 [case test_enum_with_inaccurate_annotation_throws]
 from typing import Optional
-from graphene import ObjectType, Field, Argument, ResolveInfo, String, Enum
+from graphene import ObjectType, Field, Argument, ResolveInfo, String, Enum, Schema
 
 class MyEnum(Enum):
     one = 'ONE'
@@ -161,6 +168,9 @@ class TestQuery(ObjectType):
     def resolve_field(_: None, __: ResolveInfo, new_arg: Optional[MyEnum]) -> Optional[str]:
         return 'hi'
 
+
+Schema(query=TestQuery)
+
 [out]
 main:11: error: Parameter "new_arg" has type Union[main.MyEnum, None], expected type Union[builtins.str, None]
 Found 1 error in 1 file (checked 1 source file)
@@ -169,7 +179,7 @@ Found 1 error in 1 file (checked 1 source file)
 [case test_unsupported_type_with_any_annotation_passes]
 from typing import Optional
 from enum import Enum as PyEnum
-from graphene import ObjectType, Field, Argument, ResolveInfo, String, Enum
+from graphene import ObjectType, Field, Argument, ResolveInfo, String, Enum, Schema
 
 class MyEnum(PyEnum):
     one = 'ONE'
@@ -184,13 +194,16 @@ class TestQuery(ObjectType):
     def resolve_field(_: None, __: ResolveInfo, new_arg: Optional[str]) -> Optional[str]:
         return 'hi'
 
+
+Schema(query=TestQuery)
+
 [out]
 Success: no issues found in 1 source file
 
 
 [case test_enum_with_accurate_annotation_passes]
 from typing import Optional
-from graphene import ObjectType, Field, Argument, ResolveInfo, String, Enum
+from graphene import ObjectType, Field, Argument, ResolveInfo, String, Enum, Schema
 
 class MyEnum(Enum):
     one = 'ONE'
@@ -202,13 +215,16 @@ class TestQuery(ObjectType):
     def resolve_field(_: None, __: ResolveInfo, new_arg: Optional[str]) -> Optional[str]:
         return 'hi'
 
+
+Schema(query=TestQuery)
+
 [out]
 Success: no issues found in 1 source file
 
 
 [case test_list_type_with_inaccurate_annotation_throws]
 from typing import Optional
-from graphene import ObjectType, Field, Argument, ResolveInfo, String, List
+from graphene import ObjectType, Field, Argument, ResolveInfo, String, List, Schema
 
 class TestQuery(ObjectType):
     field = Field(String, new_arg=Argument(List(String)))
@@ -216,6 +232,9 @@ class TestQuery(ObjectType):
     @staticmethod
     def resolve_field(_: None, __: ResolveInfo, new_arg: Optional[str]) -> Optional[str]:
         return 'hi'
+
+
+Schema(query=TestQuery)
 
 [out]
 main:8: error: Parameter "new_arg" has type Union[builtins.str, None], expected type Union[builtins.list[Union[builtins.str, None]], None]
@@ -224,7 +243,7 @@ Found 1 error in 1 file (checked 1 source file)
 
 [case test_list_type_with_accurate_annotation_passes]
 from typing import Optional, List as ListType
-from graphene import ObjectType, Field, Argument, ResolveInfo, String, List
+from graphene import ObjectType, Field, Argument, ResolveInfo, String, List, Schema
 
 class TestQuery(ObjectType):
     field = Field(String, new_arg=Argument(List(String)))
@@ -233,13 +252,16 @@ class TestQuery(ObjectType):
     def resolve_field(_: None, __: ResolveInfo, new_arg: Optional[ListType[Optional[str]]]) -> Optional[str]:
         return 'hi'
 
+
+Schema(query=TestQuery)
+
 [out]
 Success: no issues found in 1 source file
 
 
 [case test_json_type_with_inaccurate_annotation_throws]
 from typing import Optional
-from graphene import ObjectType, Field, Argument, ResolveInfo, String, JSONString
+from graphene import ObjectType, Field, Argument, ResolveInfo, String, JSONString, Schema
 
 class TestQuery(ObjectType):
     field = Field(String, new_arg=Argument(JSONString))
@@ -247,6 +269,10 @@ class TestQuery(ObjectType):
     @staticmethod
     def resolve_field(_: None, __: ResolveInfo, new_arg: Optional[str]) -> Optional[str]:
         return 'hi'
+
+
+Schema(query=TestQuery)
+
 [out]
 main:8: error: Parameter "new_arg" has type Union[builtins.str, None], expected type Union[builtins.dict[Any, Any], None]
 Found 1 error in 1 file (checked 1 source file)
@@ -254,7 +280,7 @@ Found 1 error in 1 file (checked 1 source file)
 
 [case test_json_type_with_accurate_annotation_passes]
 from typing import Optional
-from graphene import ObjectType, Field, Argument, ResolveInfo, String, JSONString
+from graphene import ObjectType, Field, Argument, ResolveInfo, String, JSONString, Schema
 
 class TestQuery(ObjectType):
     field = Field(String, new_arg=Argument(JSONString))
@@ -262,13 +288,17 @@ class TestQuery(ObjectType):
     @staticmethod
     def resolve_field(_: None, __: ResolveInfo, new_arg: Optional[dict]) -> Optional[str]:
         return 'hi'
+
+
+Schema(query=TestQuery)
+
 [out]
 Success: no issues found in 1 source file
 
 
 [case test_interface_attribute_with_accurate_annotation_passes]
 from typing import Optional
-from graphene import ObjectType, Field, Argument, ResolveInfo, String, Interface
+from graphene import ObjectType, Field, Argument, ResolveInfo, String, Interface, Schema
 
 class SimpleInterface(Interface):
     field = Field(String, new_arg=Argument(String))
@@ -277,34 +307,42 @@ class SimpleInterface(Interface):
 class TestQuery(ObjectType):
     class Meta:
         interfaces = (SimpleInterface,)
-    
+
     @staticmethod
     def resolve_field(_: None, __: ResolveInfo, new_arg: Optional[str]) -> Optional[str]:
         return 'hi'
+
+
+Schema(query=TestQuery)
+
 [out]
 Success: no issues found in 1 source file
 
 [case test_interface_attribute_forward_reference_passes]
 from typing import Optional
-from graphene import ObjectType, Field, Argument, ResolveInfo, String, Interface
+from graphene import ObjectType, Field, Argument, ResolveInfo, String, Interface, Schema
 
 class TestQuery(ObjectType):
     class Meta:
         interfaces = (SimpleInterfaceAfter,)
-    
+
     @staticmethod
     def resolve_field(_: None, __: ResolveInfo, new_arg: Optional[str]) -> Optional[str]:
         return 'hi'
 
 class SimpleInterfaceAfter(Interface):
     field = Field(String, new_arg=Argument(String))
+
+
+Schema(query=TestQuery)
+
 [out]
 Success: no issues found in 1 source file
 
 
 [case test_interface_attribute_with_inaccurate_annotation_throws]
 from typing import Optional
-from graphene import ObjectType, Field, Argument, ResolveInfo, String, Interface
+from graphene import ObjectType, Field, Argument, ResolveInfo, String, Interface, Schema
 
 class SimpleInterface(Interface):
     field = Field(String, new_arg=Argument(String))
@@ -313,10 +351,14 @@ class SimpleInterface(Interface):
 class TestQuery(ObjectType):
     class Meta:
         interfaces = (SimpleInterface,)
-    
+
     @staticmethod
     def resolve_field(_: None, __: ResolveInfo, new_arg: Optional[int]) -> Optional[str]:
         return 'hi'
+
+
+Schema(query=TestQuery)
+
 [out]
 main:13: error: Parameter "new_arg" has type Union[builtins.int, None], expected type Union[builtins.str, None]
 Found 1 error in 1 file (checked 1 source file)
@@ -324,7 +366,7 @@ Found 1 error in 1 file (checked 1 source file)
 
 [case test_non_tuple_interface_attribute_on_meta_class_throws]
 from typing import Optional
-from graphene import ObjectType, Field, Argument, ResolveInfo, String, Interface
+from graphene import ObjectType, Field, Argument, ResolveInfo, String, Interface, Schema
 
 class SimpleInterface(Interface):
     field = Field(String, new_arg=Argument(String))
@@ -333,6 +375,10 @@ class SimpleInterface(Interface):
 class TestQuery(ObjectType):
     class Meta:
         interfaces = 'hi'
+
+
+Schema(query=TestQuery)
+
 [out]
 main:10: error: "interfaces" attribute in Meta class must be a tuple type
 Found 1 error in 1 file (checked 1 source file)
@@ -340,7 +386,7 @@ Found 1 error in 1 file (checked 1 source file)
 
 [case test_custom_graphene_scalar_with_accurate_resolver_annotation_passes]
 from typing import Optional, Any
-from graphene import ObjectType, Field, Scalar, ResolveInfo, Argument
+from graphene import ObjectType, Field, Scalar, ResolveInfo, Argument, Schema
 
 
 class JSONString(Scalar):
@@ -361,13 +407,17 @@ class TestQuery(ObjectType):
     @staticmethod
     def resolve_field(_: None, __: ResolveInfo, arg: Optional[str]) -> Optional[str]:
         return 'hi'
+
+
+Schema(query=TestQuery)
+
 [out]
 Success: no issues found in 1 source file
 
 
 [case test_custom_graphene_scalar_with_inaccurate_resolver_annotation_fails]
 from typing import Optional, Any
-from graphene import ObjectType, Field, Scalar, ResolveInfo, Argument
+from graphene import ObjectType, Field, Scalar, ResolveInfo, Argument, Schema
 
 
 class JSONString(Scalar):
@@ -388,6 +438,10 @@ class TestQuery(ObjectType):
     @staticmethod
     def resolve_field(_: None, __: ResolveInfo, arg: str) -> Optional[str]:
         return 'hi'
+
+
+Schema(query=TestQuery)
+
 [out]
 main:21: error: Parameter "arg" has type builtins.str, expected type Union[builtins.str, None]
 Found 1 error in 1 file (checked 1 source file)
@@ -395,7 +449,7 @@ Found 1 error in 1 file (checked 1 source file)
 
 [case test_custom_graphene_scalar_with_parse_value_returning_any_passes]
 from typing import Optional, Any
-from graphene import ObjectType, Field, Scalar
+from graphene import ObjectType, Field, Scalar, Schema
 
 
 class JSONString(Scalar):
@@ -412,13 +466,17 @@ class JSONString(Scalar):
 
 class TestQuery(ObjectType):
     field = Field(JSONString)
+
+
+Schema(query=TestQuery)
+
 [out]
 Success: no issues found in 1 source file
 
 
 [case test_custom_graphene_scalar_with_parse_value_without_return_type_annotation_passes]
 from typing import Optional, Any
-from graphene import ObjectType, Field, Scalar
+from graphene import ObjectType, Field, Scalar, Schema
 
 
 class JSONString(Scalar):
@@ -435,13 +493,17 @@ class JSONString(Scalar):
 
 class TestQuery(ObjectType):
     field = Field(JSONString)
+
+
+Schema(query=TestQuery)
+
 [out]
 Success: no issues found in 1 source file
 
 
 [case test_custom_graphene_scalar_with_non_static_parse_value_passes]
 from typing import Optional, Any
-from graphene import ObjectType, Field, Scalar
+from graphene import ObjectType, Field, Scalar, Schema
 
 
 class JSONString(Scalar):
@@ -457,12 +519,16 @@ class JSONString(Scalar):
 
 class TestQuery(ObjectType):
     field = Field(JSONString)
+
+
+Schema(query=TestQuery)
+
 [out]
 Success: no issues found in 1 source file
 
 [case test_custom_graphene_scalar_with_non_function_parse_value_passes]
 from typing import Optional, Any
-from graphene import ObjectType, Field, Scalar
+from graphene import ObjectType, Field, Scalar, Schema
 
 
 class JSONString(Scalar):
@@ -477,19 +543,26 @@ class JSONString(Scalar):
 
 class TestQuery(ObjectType):
     field = Field(JSONString)
+
+
+Schema(query=TestQuery)
+
 [out]
 Success: no issues found in 1 source file
 
 
 [case test_non_static_resolver_with_accurate_annotation_passes]
 from typing import Optional
-from graphene import ObjectType, Field, Argument, ResolveInfo, String
+from graphene import ObjectType, Field, Argument, ResolveInfo, String, Schema
 
 class TestQuery(ObjectType):
     field = Field(String, new_arg=Argument(String))
 
     def resolve_field(_: None, __: ResolveInfo, new_arg: Optional[str]) -> Optional[str]:
         return 'hi'
+
+
+Schema(query=TestQuery)
 
 [out]
 main:7: error: Self argument missing for a non-static method (or an invalid type for self)
@@ -498,7 +571,7 @@ Found 1 error in 1 file (checked 1 source file)
 
 [case test_non_static_resolver_with_inaccurate_annotation_throws]
 from typing import Optional
-from graphene import ObjectType, Field, Argument, ResolveInfo, String
+from graphene import ObjectType, Field, Argument, ResolveInfo, String, Schema
 
 class TestQuery(ObjectType):
     field = Field(String, new_arg=Argument(String))
@@ -506,14 +579,17 @@ class TestQuery(ObjectType):
     def resolve_field(_: None, __: ResolveInfo, new_arg: str) -> Optional[str]:
         return 'hi'
 
+
+Schema(query=TestQuery)
+
 [out]
-main:7: error: Parameter "new_arg" has type builtins.str, expected type Union[builtins.str, None]
 main:7: error: Self argument missing for a non-static method (or an invalid type for self)
+main:7: error: Parameter "new_arg" has type builtins.str, expected type Union[builtins.str, None]
 Found 2 errors in 1 file (checked 1 source file)
 
 
 [case test_resolver_with_inaccurate_previous_argument_passes]
-from graphene import ObjectType, Field, ResolveInfo, String
+from graphene import ObjectType, Field, ResolveInfo, String, Schema
 
 
 class RuntimePerson:
@@ -527,12 +603,15 @@ class Person(ObjectType[RuntimePerson]):
     def resolve_name(person: RuntimePerson, _: ResolveInfo) -> str:
         return ''
 
+
+Schema(query=Person)
+
 [out]
 Success: no issues found in 1 source file
 
 
 [case test_resolver_with_inaccurate_previous_argument_throws]
-from graphene import ObjectType, Field, ResolveInfo, String
+from graphene import ObjectType, Field, ResolveInfo, String, Schema
 
 
 class RuntimePerson:
@@ -550,6 +629,9 @@ class Person(ObjectType[RuntimePerson]):
     def resolve_name(person: NotAPerson, _: ResolveInfo) -> str:
         return ''
 
+
+Schema(query=Person)
+
 [out]
 main:16: error: Parameter "person" has type main.NotAPerson, expected type main.RuntimePerson
 Found 1 error in 1 file (checked 1 source file)
@@ -558,7 +640,7 @@ Found 1 error in 1 file (checked 1 source file)
 [case test_resolver_with_inaccurate_union_previous_argument_throws]
 from typing import Union
 
-from graphene import ObjectType, Field, ResolveInfo, String
+from graphene import ObjectType, Field, ResolveInfo, String, Schema
 
 
 class A:
@@ -581,6 +663,9 @@ class Person(ObjectType[RT]):
     def resolve_name(person: Union[A, B], _: ResolveInfo) -> str:
         return ''
 
+
+Schema(query=Person)
+
 [out]
 main:23: error: Parameter "person" has type Union[main.A, main.B], expected type Union[main.A, main.C]
 Found 1 error in 1 file (checked 1 source file)
@@ -589,7 +674,7 @@ Found 1 error in 1 file (checked 1 source file)
 [case test_resolver_with_same_union_previous_argument_passes]
 from typing import Union
 
-from graphene import ObjectType, Field, ResolveInfo, String
+from graphene import ObjectType, Field, ResolveInfo, String, Schema
 
 
 class A:
@@ -612,12 +697,15 @@ class Person(ObjectType[RT]):
     def resolve_name(person: RT, _: ResolveInfo) -> str:
         return ''
 
+
+Schema(query=Person)
+
 [out]
 Success: no issues found in 1 source file
 
 
 [case test_resolver_with_wrong_return_type_fails]
-from graphene import ObjectType, Field, ResolveInfo, String
+from graphene import ObjectType, Field, ResolveInfo, String, Schema
 
 class Person(ObjectType):
     name = Field(String, required=True)
@@ -625,6 +713,9 @@ class Person(ObjectType):
     @staticmethod
     def resolve_name(_: None, __: ResolveInfo) -> int:
         return 0
+
+
+Schema(query=Person)
 
 [out]
 main:7: error: Resolver returns type builtins.int, expected type builtins.str
@@ -634,7 +725,7 @@ Found 1 error in 1 file (checked 1 source file)
 [case test_resolver_with_wrong_object_return_type_fails]
 from typing import List as ListType
 
-from graphene import ObjectType, Field, ResolveInfo, String, List, NonNull
+from graphene import ObjectType, Field, ResolveInfo, String, List, NonNull, Schema
 
 
 class AnimalModel:
@@ -660,6 +751,9 @@ class Person(ObjectType[PersonModel]):
     def resolve_pets(person: PersonModel, _: ResolveInfo) -> ListType[EnemyModel]:
         return []
 
+
+Schema(query=Person)
+
 [out]
 main:26: error: Resolver returns type builtins.list[main.EnemyModel], expected type typing.Sequence[main.AnimalModel]
 Found 1 error in 1 file (checked 1 source file)
@@ -668,7 +762,7 @@ Found 1 error in 1 file (checked 1 source file)
 [case test_resolver_with_correct_object_return_type_passes]
 from typing import List as ListType
 
-from graphene import ObjectType, Field, ResolveInfo, String, List, NonNull
+from graphene import ObjectType, Field, ResolveInfo, String, List, NonNull, Schema
 
 
 class AnimalModel:
@@ -690,6 +784,9 @@ class Person(ObjectType[PersonModel]):
     def resolve_pets(person: PersonModel, _: ResolveInfo) -> ListType[AnimalModel]:
         return []
 
+
+Schema(query=Person)
+
 [out]
 Success: no issues found in 1 source file
 
@@ -697,7 +794,7 @@ Success: no issues found in 1 source file
 [case test_resolver_with_correct_object_union_return_type_passes]
 from typing import List as ListType, Union
 
-from graphene import ObjectType, Field, ResolveInfo, String, List, NonNull
+from graphene import ObjectType, Field, ResolveInfo, String, List, NonNull, Schema
 
 
 class AnimalModel:
@@ -726,6 +823,9 @@ class Person(ObjectType[PersonModel]):
     def resolve_pets(person: PersonModel, _: ResolveInfo) -> ListType[AnimalModel]:
         return []
 
+
+Schema(query=Person)
+
 [out]
 Success: no issues found in 1 source file
 
@@ -733,7 +833,7 @@ Success: no issues found in 1 source file
 [case test_resolver_with_mismatched_return_nullability_fails]
 from typing import List as ListType, Optional
 
-from graphene import ObjectType, Field, ResolveInfo, String
+from graphene import ObjectType, Field, ResolveInfo, String, Schema
 
 
 class PersonModel:
@@ -747,13 +847,16 @@ class Person(ObjectType[PersonModel]):
     def resolve_name(person: PersonModel, _: ResolveInfo) -> Optional[str]:
         return ''
 
+
+Schema(query=Person)
+
 [out]
 main:14: error: Resolver returns type Union[builtins.str, None], expected type builtins.str
 Found 1 error in 1 file (checked 1 source file)
 
 
-[case test_resolver_with_scalar_type_is_correct]
-from graphene import ObjectType, Field, ResolveInfo, String
+[case test_resolver_with_correct_scalar_type_passes]
+from graphene import ObjectType, Field, ResolveInfo, String, Schema
 from typing import Optional
 
 class A:
@@ -764,6 +867,216 @@ class TestQuery(ObjectType):
 
     def resolve_name(self, info: ResolveInfo, name: Optional[str]) -> None:
         return None
+
+[out]
+Success: no issues found in 1 source file
+
+
+[case test_resolver_with_incorrect_scalar_type_fails]
+from graphene import ObjectType, Field, ResolveInfo, String, Schema, List, NonNull
+from typing import Optional, List as ListType
+
+class A:
+    name: str
+
+class TestQuery(ObjectType):
+    name = Field(A, name=String(), other=String(required=True), some_list=NonNull(List(NonNull(String))))
+
+    def resolve_name(
+        self, info: ResolveInfo,
+        name: str, other: Optional[str], some_list: Optional[ListType[Optional[str]]],
+    ) -> None:
+        return None
+
+
+Schema(query=TestQuery)
+
+[out]
+main:10: error: Parameter "name" has type builtins.str, expected type Union[builtins.str, None]
+main:10: error: Parameter "other" has type Union[builtins.str, None], expected type builtins.str
+main:10: error: Parameter "some_list" has type Union[builtins.list[Union[builtins.str, None]], None], expected type builtins.list[builtins.str]
+Found 3 errors in 1 file (checked 1 source file)
+
+
+[case test_finds_errors_on_many_types_with_cycles]
+from graphene import ObjectType, Field, ResolveInfo, String, Schema, NonNull, List, Boolean, Schema
+from typing import Optional
+
+
+class BoardMember(ObjectType):
+    position = Field(String, required=True)
+
+    @staticmethod
+    def resolve_position(_: None, __: ResolveInfo) -> Optional[str]:
+        return None
+
+
+class Company(ObjectType):
+    company_name = Field(String, required=True)
+    employees = Field(List(NonNull(lambda: Employee)), required=True)
+    board_members = Field(List(NonNull(lambda: BoardMember)), required=True)
+
+    @staticmethod
+    def resolve_company_name(_: None, __: ResolveInfo) -> Optional[str]:
+        return None
+
+
+class Employee(ObjectType):
+    name = Field(String, required=True)
+    company = Field(Company, required=True)
+
+    @staticmethod
+    def resolve_name(_: None, __: ResolveInfo) -> Optional[str]:
+        return None
+
+
+class Boss(ObjectType):
+    employee = Field(Employee)
+
+
+class User(ObjectType):
+    username = Field(String, required=True)
+
+    @staticmethod
+    def resolve_username(_: None, __: ResolveInfo) -> int:
+        return 0
+
+
+class HiddenType(ObjectType):
+    is_hidden = Field(Boolean, required=True)
+
+    @staticmethod
+    def resolve_is_hidden(_: None, __: ResolveInfo) -> Optional[bool]:
+        return None
+
+
+class Query(ObjectType):
+    boss = Field(Boss)
+    user = Field(NonNull(User))
+
+
+class Mutations(ObjectType):
+    foo = Field(String)
+
+
+Schema(mutation=Mutations, query=Query, types=(HiddenType,))
+
+[out]
+main:9: error: Resolver returns type Union[builtins.str, None], expected type builtins.str
+main:19: error: Resolver returns type Union[builtins.str, None], expected type builtins.str
+main:28: error: Resolver returns type Union[builtins.str, None], expected type builtins.str
+main:40: error: Resolver returns type builtins.int, expected type builtins.str
+main:48: error: Resolver returns type Union[builtins.bool, None], expected type builtins.bool
+Found 5 errors in 1 file (checked 1 source file)
+
+
+[case test_multiple_schemas_only_errors_once]
+from typing import List as ListType, Optional
+
+from graphene import ObjectType, Field, ResolveInfo, String, Schema
+
+
+class PersonModel:
+    name: Optional[str]
+
+
+class Person(ObjectType[PersonModel]):
+    name = Field(String, required=True)
+
+    @staticmethod
+    def resolve_name(person: PersonModel, _: ResolveInfo) -> Optional[str]:
+        return ''
+
+
+Schema(query=Person)
+Schema(query=Person)
+
+[out]
+main:14: error: Resolver returns type Union[builtins.str, None], expected type builtins.str
+Found 1 error in 1 file (checked 1 source file)
+
+
+[case test_resolver_for_field_subclass_passes]
+from graphene import ObjectType, Field, ResolveInfo, String, Schema
+from typing import Optional
+
+
+class CustomField(Field):
+    pass
+
+
+class ExtraCustomField(CustomField):
+    pass
+
+
+class TestQuery(ObjectType):
+    name = ExtraCustomField(String)
+
+    def resolve_name(self, info: ResolveInfo) -> None:
+        return None
+
+
+Schema(query=TestQuery)
+
+[out]
+Success: no issues found in 1 source file
+
+
+[case test_field_with_lambda_passes]
+from graphene import ObjectType, Field, ResolveInfo, String, Schema, NonNull
+from typing import Optional, Any
+import main
+
+
+class TestQuery(ObjectType):
+    my_thing = Field(NonNull(lambda: main.MyType))
+
+    def resolve_my_thing(self, info: ResolveInfo) -> Any:
+        return {}
+
+
+class MyType(ObjectType):
+    name = Field(String, required=True)
+
+
+Schema(query=TestQuery)
+
+[out]
+Success: no issues found in 1 source file
+
+
+[case test_field_with_argument_default_value_treated_as_non_null]
+from graphene import ObjectType, Field, ResolveInfo, String, Schema, Argument
+from typing import Optional, Any
+
+
+class TestQuery(ObjectType):
+    my_thing = Field(String, my_arg=Argument(String, default_value='foo'))
+
+    def resolve_my_thing(self, info: ResolveInfo, *, my_arg: Optional[str]) -> Optional[str]:
+        return my_arg
+
+
+Schema(query=TestQuery)
+
+[out]
+main:8: error: Parameter "my_arg" has type Union[builtins.str, None], expected type builtins.str
+Found 1 error in 1 file (checked 1 source file)
+
+
+[case test_field_with_argument_default_value_of_none_treated_as_nullable]
+from graphene import ObjectType, Field, ResolveInfo, String, Schema, Argument
+from typing import Optional, Any
+
+
+class TestQuery(ObjectType):
+    my_thing = Field(String, my_arg=Argument(String, default_value=None))
+
+    def resolve_my_thing(self, info: ResolveInfo, *, my_arg: Optional[str]) -> Optional[str]:
+        return my_arg
+
+
+Schema(query=TestQuery)
 
 [out]
 Success: no issues found in 1 source file
