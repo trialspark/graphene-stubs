@@ -1158,3 +1158,40 @@ class Person(ObjectType[PersonModel]):
 [out]
 main:12: error: "PersonModel" has no attribute "first_name"
 Found 1 error in 1 file (checked 1 source file)
+
+
+[case test_field_resolve_with_namespace]
+from typing import Optional
+
+import graphene
+
+
+class TestQuery(graphene.ObjectType):
+    field = graphene.Field(graphene.String)
+
+    @staticmethod
+    def resolve_field(_: None, __: graphene.ResolveInfo) -> Optional[str]:
+        return 'hi'
+
+
+[out]
+Success: no issues found in 1 source file
+
+
+[case test_field_resolve_with_namespace_fails]
+from typing import Optional
+
+import graphene
+
+
+class TestQuery(graphene.ObjectType):
+    field = graphene.Field(graphene.Int)
+
+    @staticmethod
+    def resolve_field(_: None, __: graphene.ResolveInfo) -> Optional[str]:
+        return 'hi'
+
+
+[out]
+main:10: error: Resolver returns type Union[builtins.str, None], expected type Union[builtins.int, None]
+Found 1 error in 1 file (checked 1 source file)
