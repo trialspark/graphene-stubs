@@ -1195,3 +1195,157 @@ class TestQuery(graphene.ObjectType):
 [out]
 main:10: error: Resolver returns type Union[builtins.str, None], expected type Union[builtins.int, None]
 Found 1 error in 1 file (checked 1 source file)
+
+
+[case test_interface_wrong_argument_fails]
+from typing import Optional
+
+from graphene import Interface, Field, ResolveInfo, String, Argument
+
+
+class Person(Interface):
+    name = Field(String, foo=Argument(String))
+
+    @staticmethod
+    def resolve_name(_: None, __: ResolveInfo, *, foo: int) -> Optional[str]:
+        return 'Josh'
+
+[out]
+main:10: error: Parameter "foo" has type builtins.int, expected type Union[builtins.str, None]
+Found 1 error in 1 file (checked 1 source file)
+
+
+[case test_interface_wrong_return_type_fails]
+from typing import Optional
+
+from graphene import Interface, Field, ResolveInfo, String, Argument
+
+
+class Person(Interface):
+    name = Field(String, required=True)
+
+    @staticmethod
+    def resolve_name(_: None, __: ResolveInfo) -> Optional[str]:
+        return None
+
+[out]
+main:10: error: Resolver returns type Union[builtins.str, None], expected type builtins.str
+Found 1 error in 1 file (checked 1 source file)
+
+
+[case test_interface_wrong_previous_arg_fails]
+from typing import Optional
+
+from graphene import Interface, Field, ResolveInfo, String, Argument
+
+
+class PersonModel:
+    name: str
+
+
+class AnimalModel:
+    species: str
+
+
+class Person(Interface[PersonModel]):
+    name = Field(String, required=True)
+
+    @staticmethod
+    def resolve_name(person: AnimalModel, __: ResolveInfo) -> Optional[str]:
+        return None
+
+[out]
+main:18: error: Parameter "person" has type main.AnimalModel, expected type main.PersonModel
+Found 1 error in 1 file (checked 1 source file)
+
+
+[case test_interface_as_field_type_wrong_resolver_return_fails]
+from typing import Optional, List as ListType
+
+from graphene import Interface, Field, ResolveInfo, ObjectType, List, NonNull, String
+
+
+class PersonModel:
+    name: str
+
+
+class AnimalModel:
+    species: str
+
+
+class Person(Interface[PersonModel]):
+    name = Field(String, required=True)
+
+    @staticmethod
+    def resolve_name(person: PersonModel, __: ResolveInfo) -> str:
+        return ''
+
+
+class Business(ObjectType):
+    employees = Field(List(NonNull(Person)), required=True)
+
+    @staticmethod
+    def resolve_employees(_: None, __: ResolveInfo) -> ListType[AnimalModel]:
+        return []
+
+
+[out]
+main:26: error: Resolver returns type builtins.list[main.AnimalModel], expected type typing.Sequence[main.PersonModel]
+Found 1 error in 1 file (checked 1 source file)
+
+[case test_interface_no_errors_passes]
+from typing import Optional, List as ListType
+
+from graphene import Interface, Field, ResolveInfo, Argument, Boolean, String
+
+
+class PersonModel:
+    name: str
+
+
+class Person(Interface[PersonModel]):
+    name = Field(String, required=True, uppercase=Argument(Boolean, required=True))
+
+    @staticmethod
+    def resolve_name(person: PersonModel, __: ResolveInfo, *, uppercase: bool) -> str:
+        return 'Josh'
+
+
+[out]
+Success: no issues found in 1 source file 
+
+[case test_interface_default_resolver_is_not_checked]
+from typing import Optional, List as ListType, Type
+
+from graphene import Interface, Field, ResolveInfo, Argument, Boolean, Int, String, ObjectType
+
+
+class PersonModel:
+    name: str
+
+
+class Person(Interface[PersonModel]):
+    name = Field(String, required=True)
+    age = Field(Int, required=True)
+
+    @staticmethod
+    def resolve_type(_: PersonModel, __: ResolveInfo) -> Type[Employee]:
+        """
+        This is not a field resolver. It is the special interface resolver that determines which
+        ObjectType to use.
+        """
+        return Employee
+
+
+class Employee(ObjectType[PersonModel]):
+    class Meta:
+        interfaces = (Person,)
+
+    @staticmethod
+    def resolve_age(_: PersonModel, __: ResolveInfo) -> int:
+        return 28
+
+
+[out]
+Success: no issues found in 1 source file 
+
