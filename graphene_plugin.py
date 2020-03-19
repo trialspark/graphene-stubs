@@ -611,7 +611,7 @@ class ObjectTypeInfo(BaseObjectInfo):
 @dataclass
 class InterfaceInfo(BaseObjectInfo):
     """
-    Contains information about the defintion of a Graphene `Interface` child class, including:
+    Contains information about the definition of a Graphene `Interface` child class, including:
 
     * name: the name of the `Interface`
     * fields: A `dict` of field name to `FieldInfo` for each field defintion in the `Interface`
@@ -695,7 +695,7 @@ class GraphenePlugin(Plugin):
                     if isinstance(object_info, InterfaceInfo):
                         # The default resolver doesn't apply to `Interface`s because the `ObjectType`s that implement
                         # them could have resolvers for their fields.
-                        # TODO: Detect if any of an `Interface`'s `ObjectType`s not _not_ define their own resolver for
+                        # TODO: Detect if any of an `Interface`'s `ObjectType`s do _not_ define their own resolver for
                         # this field. In that case, we _do_ want to type-check the default resolver.
                         continue
 
