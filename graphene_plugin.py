@@ -7,7 +7,8 @@ from typing import Optional, Callable, Type as TypeOf, List, Any, Dict, cast
 from mypy.checker import TypeChecker
 from mypy.checkmember import analyze_member_access
 from mypy.nodes import AssignmentStmt, Decorator, CallExpr, Argument, TypeInfo, FuncDef, Statement, ClassDef, \
-    TupleExpr, NameExpr, Expression, MypyFile, ExpressionStmt, MemberExpr, Var, SymbolTableNode, MDEF, CastExpr
+    TupleExpr, Expression, MypyFile, ExpressionStmt, MemberExpr, Var, SymbolTableNode, MDEF, CastExpr, \
+    RefExpr, NameExpr
 from mypy.options import Options
 from mypy.plugin import Plugin, AttributeContext, ClassDefContext, SemanticAnalyzerPluginInterface
 from mypy.state import strict_optional_set
@@ -88,7 +89,7 @@ def _is_field_declaration(statement: Statement) -> bool:
         return False
 
     callee = call_expr.callee
-    if not isinstance(callee, NameExpr):
+    if not isinstance(callee, RefExpr):
         return False
 
     callee_node = callee.node
@@ -143,7 +144,7 @@ def _get_python_type_from_graphene_field_first_argument(
 
     type_: Optional[Type] = None
 
-    if isinstance(argument, NameExpr) and isinstance(argument.node, TypeInfo):
+    if isinstance(argument, RefExpr) and isinstance(argument.node, TypeInfo):
         # This is just a plain graphene type that doesn't wrap anything (i.e `String`, `MyObjectType`,
         # **not** `List(String)`, `NonNull(MyObjectType), etc.)``
         is_scalar = _type_is_a(argument.node, GRAPHENE_SCALAR_NAME)
@@ -178,7 +179,7 @@ def _get_python_type_from_graphene_field_first_argument(
             assert isinstance(symbol_table_node.node, TypeInfo)
             type_ = Instance(symbol_table_node.node, [])
 
-    elif isinstance(argument, CallExpr) and isinstance(argument.callee, NameExpr) and argument.args:
+    elif isinstance(argument, CallExpr) and isinstance(argument.callee, RefExpr) and argument.args:
         # This is something being called (e.g. `List()`/`NonNull()`)
 
         if argument.callee.fullname == GRAPHENE_LIST_NAME:
@@ -280,7 +281,7 @@ def _get_python_type_from_graphene_field_instantiation(
     if not isinstance(expression, CallExpr):
         return AnyType(TypeOfAny.unannotated)
 
-    if not isinstance(expression.callee, NameExpr) or expression.callee.fullname != GRAPHENE_FIELD_NAME:
+    if not isinstance(expression.callee, RefExpr) or expression.callee.fullname != GRAPHENE_FIELD_NAME:
         return AnyType(TypeOfAny.unannotated)
 
     if not expression.args:
@@ -300,7 +301,7 @@ def _get_python_type_from_graphene_argument_instantiation(
     E.g. `Argument(List(NonNull(String)), required=True) -> builtins.list[builtins.str]`
     """
 
-    assert isinstance(expression.callee, NameExpr) and isinstance(expression.callee.node, TypeInfo)
+    assert isinstance(expression.callee, RefExpr) and isinstance(expression.callee.node, TypeInfo)
 
     graphene_type: Optional[Expression] = None
     if _type_is_a(expression.callee.node, GRAPHENE_UNMOUNTED_TYPE_NAME):
@@ -389,7 +390,7 @@ class FieldInfo:
 
         if (
             not isinstance(expression, CallExpr)
-            or not isinstance(expression.callee, NameExpr)
+            or not isinstance(expression.callee, RefExpr)
             or not expression.callee.fullname == GRAPHENE_FIELD_NAME
         ):
             return []
@@ -398,7 +399,7 @@ class FieldInfo:
             if (
                 arg_name
                 and isinstance(arg, CallExpr)
-                and isinstance(arg.callee, NameExpr)
+                and isinstance(arg.callee, RefExpr)
                 and isinstance(arg.callee.node, TypeInfo)
             ):
                 if (
@@ -516,7 +517,7 @@ class ObjectTypeInfo:
                 interface_defs: List[ClassDef] = []
                 for item in statement.rvalue.items:
                     if (
-                        isinstance(item, NameExpr)
+                        isinstance(item, RefExpr)
                         and isinstance(item.node, TypeInfo)
                         and isinstance(item.node.defn, ClassDef)
                     ):
