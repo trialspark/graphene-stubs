@@ -1,7 +1,10 @@
+from enum import Enum as PyEnum
+from typing import Any, Optional, Type
+
+from graphene.utils.subclass_with_meta import SubclassWithMeta_Meta as SubclassWithMeta_Meta
+
 from .base import BaseOptions as BaseOptions, BaseType as BaseType
 from .unmountedtype import UnmountedType as UnmountedType
-from graphene.utils.subclass_with_meta import SubclassWithMeta_Meta as SubclassWithMeta_Meta
-from typing import Any, Optional
 
 
 def eq_enum(self: Any, other: Any) -> Any:
@@ -32,18 +35,22 @@ class EnumMeta(SubclassWithMeta_Meta):
     def __call__(cls, *args: Any, **kwargs: Any) -> Any:
         ...
 
-    def from_enum(cls, enum: Any, description: Optional[Any] = ..., deprecation_reason: Optional[Any] = ...) -> Any:
+    def from_enum(
+        cls,
+        enum: Any,
+        description: Optional[Any] = ...,
+        deprecation_reason: Optional[Any] = ...,
+    ) -> Any:
         ...
 
 
 class Enum(UnmountedType, BaseType, metaclass=EnumMeta):
     @classmethod
     def __init_subclass_with_meta__(  # type: ignore[override]
-        cls,
-        enum: Optional[Any] = ...,
-        _meta: Optional[Any] = ...,
-        **options: Any
-    ) -> None:
+            cls,
+            enum: Optional[Any] = ...,
+            _meta: Optional[Any] = ...,
+            **options: Any) -> None:
         ...
 
     @classmethod
