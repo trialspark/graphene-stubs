@@ -2,7 +2,7 @@
 from dataclasses import dataclass
 from itertools import chain
 import re
-from typing import Optional, Callable, Type as TypeOf, List, Any, Dict, cast
+from typing import Optional, Callable, Type as TypeOf, List, Any, Dict, cast, Union, Tuple
 
 from mypy.checker import TypeChecker
 from mypy.checkmember import analyze_member_access
@@ -28,16 +28,18 @@ GRAPHENE_FIELD_NAME = 'graphene.types.field.Field'
 GRAPHENE_SCALAR_NAME = 'graphene.types.scalars.Scalar'
 GRAPHENE_UNMOUNTED_TYPE_NAME = 'graphene.types.unmountedtype.UnmountedType'
 GRAPHENE_STRUCTURE_NAME = 'graphene.types.structures.Structure'
+GRAPHENE_INTERFACE_NAME = 'graphene.types.interface.Interface'
 
 NOOP_ATTR_NAME = '__graphene_plugin_noop__'
 
 
-def _type_is_a(type_info: TypeInfo, other_fullname: str) -> bool:
+def _type_is_a(type_info: TypeInfo, other_fullname: Union[str, Tuple[str, ...]]) -> bool:
     """
     Checks if the given type (`type_info`) is some other type (`other_fullname`) or if the other type
     exists somewhere in its ancestry.
     """
-    if type_info.fullname == other_fullname:
+    all_fullnames = {other_fullname} if isinstance(other_fullname, str) else set(other_fullname)
+    if type_info.fullname in all_fullnames:
         return True
 
     return any(_type_is_a(base_type_info.type, other_fullname) for base_type_info in type_info.bases)
@@ -148,7 +150,7 @@ def _get_python_type_from_graphene_field_first_argument(
         # This is just a plain graphene type that doesn't wrap anything (i.e `String`, `MyObjectType`,
         # **not** `List(String)`, `NonNull(MyObjectType), etc.)``
         is_scalar = _type_is_a(argument.node, GRAPHENE_SCALAR_NAME)
-        is_objecttype = _type_is_a(argument.node, GRAPHENE_OBJECTTYPE_NAME)
+        is_object = _type_is_a(argument.node, (GRAPHENE_OBJECTTYPE_NAME, GRAPHENE_INTERFACE_NAME))
         is_enum = _type_is_a(argument.node, GRAPHENE_ENUM_NAME)
 
         if is_scalar:
@@ -168,10 +170,10 @@ def _get_python_type_from_graphene_field_first_argument(
             if ret_type:
                 type_ = ret_type
 
-        elif is_objecttype:
-            # This is an `ObjectType` child-class, so get the runtime type by looking at the type arg passed to
-            # `ObjectType[]`
-            type_ = _get_objecttype_subclass_runtime_type(argument.node)
+        elif is_object:
+            # This is an `ObjectType`/`Interface` child-class, so get the runtime type by looking at the type arg passed
+            # to `ObjectType[]`/`Interface[]`
+            type_ = _get_graphene_subclass_runtime_type(argument.node)
 
         elif is_enum:
             # This is an `Enum` child-class, which means its value will just be a `str` at runtime
@@ -331,16 +333,18 @@ def _get_python_type_from_graphene_argument_instantiation(
     )
 
 
-def _get_objecttype_subclass_runtime_type(type_info: TypeInfo) -> Type:
+def _get_graphene_subclass_runtime_type(type_info: TypeInfo) -> Type:
     """
-    Get the type that an `ObjectType` child class should serialize at runtime (via the type argument passed to
-    `ObjectType`) (e.g. `ObjectType[Foo] -> Foo`)
+    Get the type that an `ObjectType`/`Interface` child class should serialize at runtime (via the type argument passed
+    to `ObjectType`/`Interface`) (e.g. `ObjectType[Foo] -> Foo`)
     """
 
-    objecttype_base = next(base for base in type_info.bases if base.type.fullname == GRAPHENE_OBJECTTYPE_NAME)
-    # Note: even if no type argument was passed to `ObjectType` when it was sub-classed, there will still be
+    graphene_base = next(
+        base for base in type_info.bases if base.type.fullname in (GRAPHENE_OBJECTTYPE_NAME, GRAPHENE_INTERFACE_NAME)
+    )
+    # Note: even if no type argument was passed to `ObjectType`/`Interface` when it was sub-classed, there will still be
     # an item in the `args` list below. It will just be `Any`.
-    return objecttype_base.args[0]
+    return graphene_base.args[0]
 
 
 @dataclass
@@ -482,7 +486,59 @@ class ResolverInfo:
 
 
 @dataclass
-class ObjectTypeInfo:
+class BaseObjectInfo:
+    """
+    Defines common attributes that both `ObjectType`s and `Interface`s share.
+    """
+
+    name: str
+    fields: Dict[str, FieldInfo]
+    resolvers: Dict[str, ResolverInfo]
+    runtime_type: Type
+
+    @classmethod
+    def _resolvers_for_classdef(
+        cls, semanal: SemanticAnalyzerPluginInterface, classdef: ClassDef
+    ) -> List[ResolverInfo]:
+        resolvers: List[ResolverInfo] = []
+
+        for statement in classdef.defs.body:
+            funcdef = _get_func_def(statement)
+            if funcdef and funcdef.name.startswith(RESOLVER_PREFIX):
+                resolvers.append(ResolverInfo.for_funcdef(semanal, funcdef))
+
+        return resolvers
+
+    @staticmethod
+    def _fields_for_statements(
+        semanal: SemanticAnalyzerPluginInterface, statements: List[Statement]
+    ) -> List[FieldInfo]:
+        fields: List[FieldInfo] = []
+
+        for statement in statements:
+            if _is_field_declaration(statement):
+                assert isinstance(statement, AssignmentStmt)
+                if isinstance(statement.lvalues[0], NameExpr):
+                    fields.append(FieldInfo.for_statement(semanal, statement))
+
+        return fields
+
+    @classmethod
+    def for_classdef(cls, semanal: SemanticAnalyzerPluginInterface, classdef: ClassDef) -> 'BaseObjectInfo':
+        resolvers = {resolver.field_name: resolver for resolver in cls._resolvers_for_classdef(semanal, classdef)}
+        fields = {field.name: field for field in cls._fields_for_statements(semanal, classdef.defs.body)}
+        runtime_type = _get_graphene_subclass_runtime_type(classdef.info)
+
+        return cls(
+            name=classdef.name,
+            fields=fields,
+            resolvers=resolvers,
+            runtime_type=runtime_type,
+        )
+
+
+@dataclass
+class ObjectTypeInfo(BaseObjectInfo):
     """
     Contains information about the defintion of a Graphene `ObjectType` child class, including:
 
@@ -494,11 +550,6 @@ class ObjectTypeInfo:
     * runtime_type: The type that this `ObjectType` serializes at runtime, specified via the passing an
       argument to `ObjectType` (e.g. `class MyObjectType(ObjectType[MyRuntimeType]): ...`)
     """
-
-    name: str
-    fields: Dict[str, FieldInfo]
-    resolvers: Dict[str, ResolverInfo]
-    runtime_type: Type
 
     @staticmethod
     def _interface_classdefs_for_meta_classdef(
@@ -536,45 +587,50 @@ class ObjectTypeInfo:
         return []
 
     @classmethod
-    def _resolvers_for_classdef(
+    def _get_interface_fields(
         cls, semanal: SemanticAnalyzerPluginInterface, classdef: ClassDef
-    ) -> List[ResolverInfo]:
-        resolvers: List[ResolverInfo] = []
-
-        for statement in classdef.defs.body:
-            funcdef = _get_func_def(statement)
-            if funcdef and funcdef.name.startswith(RESOLVER_PREFIX):
-                resolvers.append(ResolverInfo.for_funcdef(semanal, funcdef))
-
-        return resolvers
-
-    @classmethod
-    def _fields_for_classdef(cls, semanal: SemanticAnalyzerPluginInterface, classdef: ClassDef) -> List[FieldInfo]:
-        fields: List[FieldInfo] = []
-
-        # Include fields defined on an interface
+    ) -> Dict[str, FieldInfo]:
         interface_def_statements = list(
             chain(*(interface.defs.body for interface in cls._interfaces_for_classdef(semanal, classdef)))
         )
-        for statement in (classdef.defs.body + interface_def_statements):
-            if _is_field_declaration(statement):
-                assert isinstance(statement, AssignmentStmt)
-                if isinstance(statement.lvalues[0], NameExpr):
-                    fields.append(FieldInfo.for_statement(semanal, statement))
 
-        return fields
+        return {field.name: field for field in cls._fields_for_statements(semanal, interface_def_statements)}
 
     @classmethod
     def for_classdef(cls, semanal: SemanticAnalyzerPluginInterface, classdef: ClassDef) -> 'ObjectTypeInfo':
-        resolvers = {resolver.field_name: resolver for resolver in cls._resolvers_for_classdef(semanal, classdef)}
-        fields = {field.name: field for field in cls._fields_for_classdef(semanal, classdef)}
-        runtime_type = _get_objecttype_subclass_runtime_type(classdef.info)
+        base_info = super().for_classdef(semanal, classdef)
 
         return cls(
-            name=classdef.name,
-            fields=fields,
-            resolvers=resolvers,
-            runtime_type=runtime_type,
+            name=base_info.name,
+            fields={**cls._get_interface_fields(semanal, classdef), **base_info.fields},
+            resolvers=base_info.resolvers,
+            runtime_type=base_info.runtime_type,
+        )
+
+
+@dataclass
+class InterfaceInfo(BaseObjectInfo):
+    """
+    Contains information about the definition of a Graphene `Interface` child class, including:
+
+    * name: the name of the `Interface`
+    * fields: A `dict` of field name to `FieldInfo` for each field defintion in the `Interface`
+      (e.g. `some_field = Field(String, required=True, description='this is a thing')`)
+    * resolvers: A `dict` of field name to `ResolverInfo` for each resolver method in the `Interface`
+      (e.g. `def resolve_some_field(_: None, __: ResolveInfo) -> str: 'hello'`)
+    * runtime_type: The type that this `Interface` serializes at runtime, specified via the passing an
+      argument to `Interface` (e.g. `class MyInterface(Interface[MyRuntimeType]): ...`)
+    """
+
+    @classmethod
+    def for_classdef(cls, semanal: SemanticAnalyzerPluginInterface, classdef: ClassDef) -> 'InterfaceInfo':
+        base_info = super().for_classdef(semanal, classdef)
+
+        return cls(
+            name=base_info.name,
+            fields=base_info.fields,
+            resolvers=base_info.resolvers,
+            runtime_type=base_info.runtime_type,
         )
 
 
@@ -582,10 +638,10 @@ class GraphenePlugin(Plugin):
     def __init__(self, options: Options) -> None:
         super().__init__(options)
 
-        self._objecttypes: Dict[str, ObjectTypeInfo] = {}
+        self._graphene_objects: Dict[str, Union[ObjectTypeInfo, InterfaceInfo]] = {}
 
     def get_base_class_hook(self, fullname: str) -> Optional[Callable[[ClassDefContext], None]]:
-        def collect_objecttype_subclass(ctx: ClassDefContext) -> None:
+        def collect_graphene_subclass(ctx: ClassDefContext) -> None:
             """
             Collect type information about graphene `ObjectType` child classes. This plugin is invoked
             during semantic analysis.
@@ -597,7 +653,10 @@ class GraphenePlugin(Plugin):
 
             module = ctx.api.modules[ctx.cls.info.module_name]
 
-            self._objecttypes[ctx.cls.info.fullname] = ObjectTypeInfo.for_classdef(ctx.api, ctx.cls)
+            if _type_is_a(ctx.cls.info, GRAPHENE_OBJECTTYPE_NAME):
+                self._graphene_objects[ctx.cls.info.fullname] = ObjectTypeInfo.for_classdef(ctx.api, ctx.cls)
+            elif _type_is_a(ctx.cls.info, GRAPHENE_INTERFACE_NAME):
+                self._graphene_objects[ctx.cls.info.fullname] = InterfaceInfo.for_classdef(ctx.api, ctx.cls)
 
             # Here is the fun hack. We want to type-check our `ObjectType`s at type-checking time, but
             # the `get_base_class_hook` only runs at semantic analysis time and as of now there is no
@@ -612,8 +671,8 @@ class GraphenePlugin(Plugin):
             _add_var_to_class(NOOP_ATTR_NAME, NoneType(), ctx.cls.info)
             _add_attr_access_to_module(module, ctx.cls.info, NOOP_ATTR_NAME)
 
-        if fullname == GRAPHENE_OBJECTTYPE_NAME:
-            return collect_objecttype_subclass
+        if fullname in (GRAPHENE_OBJECTTYPE_NAME, GRAPHENE_INTERFACE_NAME):
+            return collect_graphene_subclass
 
         return None
 
@@ -626,40 +685,47 @@ class GraphenePlugin(Plugin):
             """
 
             assert isinstance(ctx.type, Instance)
-            objecttype_info = self._objecttypes[ctx.type.type.fullname]
+            object_info = self._graphene_objects[ctx.type.type.fullname]
 
-            for field in objecttype_info.fields.values():
-                resolver = objecttype_info.resolvers.get(field.name)
+            for field in object_info.fields.values():
+                resolver = object_info.resolvers.get(field.name)
 
                 # If no resolver function is defined, type-check the behavior of the graphene default resolver
                 if not resolver:
+                    if isinstance(object_info, InterfaceInfo):
+                        # The default resolver doesn't apply to `Interface`s because the `ObjectType`s that implement
+                        # them could have resolvers for their fields.
+                        # TODO: Detect if any of an `Interface`'s `ObjectType`s do _not_ define their own resolver for
+                        # this field. In that case, we _do_ want to type-check the default resolver.
+                        continue
+
                     # Note: `analyze_member_access` will call `ctx.api.fail()` if the provided type doesn't have
                     # a member with the given name at all. So our code only needs to do the subtype check.
                     default_resolver_return_type = analyze_member_access(
                         field.name,
-                        objecttype_info.runtime_type,
+                        object_info.runtime_type,
                         field.context,
                         False,  # is_lvalue
                         False,  # is_super
                         False,  # is_operator
                         ctx.api.msg,
-                        original_type=objecttype_info.runtime_type,
+                        original_type=object_info.runtime_type,
                         chk=cast(TypeChecker, ctx.api),
                     )
                     if not is_subtype(default_resolver_return_type, field.type):
                         ctx.api.fail(
-                            f'Field expects type {field.type} but {objecttype_info.runtime_type}.{field.name} has type '
+                            f'Field expects type {field.type} but {object_info.runtime_type}.{field.name} has type '
                             f'{default_resolver_return_type}',
                             field.context,
                         )
                     continue
 
                 # Check that the resolver's "previous" (first) argument has the correct type
-                if not is_equivalent(resolver.previous_argument.type, objecttype_info.runtime_type):
+                if not is_equivalent(resolver.previous_argument.type, object_info.runtime_type):
                     ctx.api.fail(
                         _get_type_mismatch_error_message(
                             resolver.previous_argument.name,
-                            graphene_type=objecttype_info.runtime_type,
+                            graphene_type=object_info.runtime_type,
                             resolver_type=resolver.previous_argument.type,
                         ),
                         resolver.previous_argument.context,
@@ -699,9 +765,14 @@ class GraphenePlugin(Plugin):
                         continue
 
             # Check the every resolver function has a corresponding `Field()` defintion
-            missing_field_names = set(objecttype_info.resolvers.keys()) - set(objecttype_info.fields.keys())
+            missing_field_names = set(object_info.resolvers.keys()) - set(object_info.fields.keys())
             for name in missing_field_names:
-                resolver = objecttype_info.resolvers[name]
+                if isinstance(object_info, InterfaceInfo) and name == 'type':
+                    # This is not a field resolver. It is the special `Interface` resolver that determines which
+                    # `ObjectType` to use at runtime.
+                    continue
+
+                resolver = object_info.resolvers[name]
 
                 ctx.api.fail(f'No field with name "{resolver.field_name}" defined', resolver.context)
                 continue
