@@ -56,12 +56,3 @@ class Enum(UnmountedType, BaseType, metaclass=EnumMeta):
     @classmethod
     def get_type(cls) -> Any:
         ...
-
-    @classmethod
-    def from_enum(
-        cls,
-        enum: Type[PyEnum],
-        desciption: Optional[str] = ...,
-        deprecation_reason: Optional[str] = ...,
-    ) -> EnumMeta:
-        ...
