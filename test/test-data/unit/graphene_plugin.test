@@ -1349,3 +1349,30 @@ class Employee(ObjectType[PersonModel]):
 [out]
 Success: no issues found in 1 source file 
 
+
+[case test_default_resolver_check_does_not_run_on_interface_fields]
+from typing import Optional, List as ListType, Type
+
+from graphene import Interface, Field, ResolveInfo, Argument, Boolean, Int, String, ObjectType
+
+
+class PersonModel:
+    name: str
+
+
+class Person(Interface[PersonModel]):
+    name = Field(String, required=True)
+    age = Field(Int, required=True)
+
+    @staticmethod
+    def resolve_age(_: PersonModel, __: ResolveInfo) -> int:
+        return 28 
+
+
+class Employee(ObjectType[PersonModel]):
+    class Meta:
+        interfaces = (Person,)
+
+
+[out]
+Success: no issues found in 1 source file 
