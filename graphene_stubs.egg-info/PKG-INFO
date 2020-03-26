@@ -1,6 +1,6 @@
 Metadata-Version: 2.1
 Name: graphene-stubs
-Version: 0.14
+Version: 0.15
 Summary: Graphene stubs and mypy plugin
 Home-page: https://github.com/trialspark/graphene-stubs
 Author: Cohen Karnell

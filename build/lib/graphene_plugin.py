@@ -1,5 +1,5 @@
 # pylint: disable=no-name-in-module
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from itertools import chain
 import re
 from typing import Optional, Callable, Type as TypeOf, List, Any, Dict, cast, Union, Tuple
@@ -545,11 +545,21 @@ class ObjectTypeInfo(BaseObjectInfo):
     * name: the name of the `ObjectType`
     * fields: A `dict` of field name to `FieldInfo` for each field defintion in the `ObjectType`
       (e.g. `some_field = Field(String, required=True, description='this is a thing')`)
+    * interface_fields: A `dict` of field name to `FieldInfo` for each field definition in all of the `ObjectType`'s
+      interfaces.
+    * all_fields: A `dict` of field name to `FieldInfo` for each field definition in the `ObjectType` and all of its
+      interfaces.
     * resolvers: A `dict` of field name to `ResolverInfo` for each resolver method in the `ObjectType`
       (e.g. `def resolve_some_field(_: None, __: ResolveInfo) -> str: 'hello'`)
     * runtime_type: The type that this `ObjectType` serializes at runtime, specified via the passing an
       argument to `ObjectType` (e.g. `class MyObjectType(ObjectType[MyRuntimeType]): ...`)
     """
+
+    interface_fields: Dict[str, FieldInfo]
+    all_fields: Dict[str, FieldInfo] = field(init=False)
+
+    def __post_init__(self) -> None:
+        self.all_fields = {**self.interface_fields, **self.fields}
 
     @staticmethod
     def _interface_classdefs_for_meta_classdef(
@@ -598,11 +608,12 @@ class ObjectTypeInfo(BaseObjectInfo):
 
     @classmethod
     def for_classdef(cls, semanal: SemanticAnalyzerPluginInterface, classdef: ClassDef) -> 'ObjectTypeInfo':
-        base_info = super().for_classdef(semanal, classdef)
+        base_info = BaseObjectInfo.for_classdef(semanal, classdef)
 
         return cls(
             name=base_info.name,
-            fields={**cls._get_interface_fields(semanal, classdef), **base_info.fields},
+            fields=base_info.fields,
+            interface_fields=cls._get_interface_fields(semanal, classdef),
             resolvers=base_info.resolvers,
             runtime_type=base_info.runtime_type,
         )
@@ -624,7 +635,7 @@ class InterfaceInfo(BaseObjectInfo):
 
     @classmethod
     def for_classdef(cls, semanal: SemanticAnalyzerPluginInterface, classdef: ClassDef) -> 'InterfaceInfo':
-        base_info = super().for_classdef(semanal, classdef)
+        base_info = BaseObjectInfo.for_classdef(semanal, classdef)
 
         return cls(
             name=base_info.name,
@@ -686,38 +697,19 @@ class GraphenePlugin(Plugin):
 
             assert isinstance(ctx.type, Instance)
             object_info = self._graphene_objects[ctx.type.type.fullname]
+            all_fields = object_info.all_fields if isinstance(object_info, ObjectTypeInfo) else object_info.fields
 
-            for field in object_info.fields.values():
-                resolver = object_info.resolvers.get(field.name)
+            # Check that resolver methods are annotated with the correct types
+            for resolver in object_info.resolvers.values():
+                gql_field = all_fields.get(resolver.field_name)
 
-                # If no resolver function is defined, type-check the behavior of the graphene default resolver
-                if not resolver:
-                    if isinstance(object_info, InterfaceInfo):
-                        # The default resolver doesn't apply to `Interface`s because the `ObjectType`s that implement
-                        # them could have resolvers for their fields.
-                        # TODO: Detect if any of an `Interface`'s `ObjectType`s do _not_ define their own resolver for
-                        # this field. In that case, we _do_ want to type-check the default resolver.
+                if not gql_field:
+                    if isinstance(object_info, InterfaceInfo) and resolver.field_name == 'type':
+                        # This is not a field resolver. It is the special `Interface` resolver that determines which
+                        # `ObjectType` to use at runtime.
                         continue
 
-                    # Note: `analyze_member_access` will call `ctx.api.fail()` if the provided type doesn't have
-                    # a member with the given name at all. So our code only needs to do the subtype check.
-                    default_resolver_return_type = analyze_member_access(
-                        field.name,
-                        object_info.runtime_type,
-                        field.context,
-                        False,  # is_lvalue
-                        False,  # is_super
-                        False,  # is_operator
-                        ctx.api.msg,
-                        original_type=object_info.runtime_type,
-                        chk=cast(TypeChecker, ctx.api),
-                    )
-                    if not is_subtype(default_resolver_return_type, field.type):
-                        ctx.api.fail(
-                            f'Field expects type {field.type} but {object_info.runtime_type}.{field.name} has type '
-                            f'{default_resolver_return_type}',
-                            field.context,
-                        )
+                    ctx.api.fail(f'No field with name "{resolver.field_name}" defined', resolver.context)
                     continue
 
                 # Check that the resolver's "previous" (first) argument has the correct type
@@ -733,14 +725,14 @@ class GraphenePlugin(Plugin):
                     continue
 
                 # Check that the resolver returns the correct type
-                if not is_subtype(resolver.return_type, field.type):
+                if not is_subtype(resolver.return_type, gql_field.type):
                     ctx.api.fail(
-                        f'Resolver returns type {resolver.return_type}, expected type {field.type}',
+                        f'Resolver returns type {resolver.return_type}, expected type {gql_field.type}',
                         resolver.context,
                     )
                     continue
 
-                for field_argument in field.arguments.values():
+                for field_argument in gql_field.arguments.values():
                     resolver_argument = resolver.arguments.get(field_argument.name)
 
                     # Check that the resolver has an argument for each argument the `Field()` defines
@@ -764,18 +756,35 @@ class GraphenePlugin(Plugin):
                         )
                         continue
 
-            # Check the every resolver function has a corresponding `Field()` defintion
-            missing_field_names = set(object_info.resolvers.keys()) - set(object_info.fields.keys())
-            for name in missing_field_names:
-                if isinstance(object_info, InterfaceInfo) and name == 'type':
-                    # This is not a field resolver. It is the special `Interface` resolver that determines which
-                    # `ObjectType` to use at runtime.
+            # If no resolver function is defined, type-check the behavior of the graphene default resolver
+            if isinstance(object_info, ObjectTypeInfo):
+                # The default resolver doesn't apply to `Interface`s because the `ObjectType`s that implement them could
+                # have resolvers for their fields.
+                # TODO: Detect if any of an `Interface`'s `ObjectType`s do _not_ define their own resolver for this
+                # field. In that case, we _do_ want to type-check the default resolver.
+                fields_without_resolver_names = set(object_info.fields.keys()) - set(object_info.resolvers.keys())
+                for name in fields_without_resolver_names:
+                    gql_field = object_info.fields[name]
+                    # Note: `analyze_member_access` will call `ctx.api.fail()` if the provided type doesn't have
+                    # a member with the given name at all. So our code only needs to do the subtype check.
+                    default_resolver_return_type = analyze_member_access(
+                        gql_field.name,
+                        object_info.runtime_type,
+                        gql_field.context,
+                        False,  # is_lvalue
+                        False,  # is_super
+                        False,  # is_operator
+                        ctx.api.msg,
+                        original_type=object_info.runtime_type,
+                        chk=cast(TypeChecker, ctx.api),
+                    )
+                    if not is_subtype(default_resolver_return_type, gql_field.type):
+                        ctx.api.fail(
+                            f'Field expects type {gql_field.type} but {object_info.runtime_type}.{gql_field.name} has '
+                            f'type {default_resolver_return_type}',
+                            gql_field.context,
+                        )
                     continue
-
-                resolver = object_info.resolvers[name]
-
-                ctx.api.fail(f'No field with name "{resolver.field_name}" defined', resolver.context)
-                continue
 
             return ctx.default_attr_type
 
