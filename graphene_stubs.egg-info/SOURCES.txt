@@ -1,3 +1,4 @@
+LICENSE
 README.md
 graphene_plugin.py
 graphene_typing.py

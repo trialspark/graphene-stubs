@@ -1,15 +1,15 @@
 Metadata-Version: 2.1
 Name: graphene-stubs
-Version: 0.15
+Version: 0.16
 Summary: Graphene stubs and mypy plugin
 Home-page: https://github.com/trialspark/graphene-stubs
 Author: Cohen Karnell
 Author-email: cohen@trialspark.com
 License: MIT License
-Description: 
-        # View installation instructions on github
-        
-Platform: UNKNOWN
 Classifier: Programming Language :: Python :: 3
 Classifier: License :: OSI Approved :: MIT License
 Description-Content-Type: text/markdown
+License-File: LICENSE
+
+
+# View installation instructions on github
